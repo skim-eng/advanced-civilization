@@ -66,3 +66,11 @@
 - **Status:** Accepted and implemented in Phase 1
 - **Decision:** Parse POST bodies under a 64 KiB limit and validate explicit endpoint schemas. Require network moves to include the last observed authoritative snapshot turn and a random request ID; reject stale/duplicate revisions before engine submission while retaining the store's unique-turn write as the concurrency guard. Serialize only fixed public error messages.
 - **Reason:** Engine legality alone does not bound transport abuse, distinguish stale retries, or stop backend exception details from crossing the API boundary. Revision checking composes with the existing optimistic-concurrency store without changing gameplay decisions.
+
+## ADR-0010 — Verify migrations and RLS with isolated PGlite PostgreSQL
+
+- **Date:** 2026-08-09
+- **Status:** Accepted for Phase 1 local/CI verification
+- **Decision:** Treat ordered SQL under `supabase/migrations/` as canonical and verify it from zero with PGlite's real PostgreSQL engine in an isolated filesystem cluster. Model Supabase's browser and service roles explicitly, test RLS operations, close/reopen persistence, and scan browser artifacts for server-only credentials.
+- **Reason:** The Phase 1 environment has no Docker/native PostgreSQL and hosted Supabase is prohibited. A PostgreSQL engine test provides materially stronger schema/RLS evidence than parsing SQL text while remaining reproducible and local.
+- **Limit:** PGlite is single-connection and does not reproduce PostgREST or hosted Supabase Realtime. Those service-specific checks remain a Phase 2 pre-deployment gate; application broadcasts remain state-free and browser table roles remain denied in Phase 1.

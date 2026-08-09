@@ -30,8 +30,20 @@ jobs:
       - name: Install locked dependencies
         run: npm ci
 
+      - name: Audit complete dependency tree
+        run: npm audit
+
+      - name: Audit production dependency tree
+        run: npm audit --omit=dev
+
       - name: Run tests
         run: npm test
+
+      - name: Test schema migrations from zero
+        run: npm run test:schema
+
+      - name: Test row-level security
+        run: npm run test:rls
 
       - name: Typecheck
         run: npm run typecheck
@@ -41,6 +53,17 @@ jobs:
 
       - name: Build UI
         run: npm run build:ui
+
+      - name: Scan browser artifacts for server-only secrets
+        env:
+          SUPABASE_SERVICE_KEY: ci-service-role-canary-not-a-secret
+          SESSION_SECRET: ci-session-canary-more-than-32-characters
+          REPORT_ADMIN_TOKEN: ci-report-admin-canary-more-than-32-characters
+          RATINGS_INGEST_KEY: ci-ratings-canary-not-a-secret
+          RESEND_API_KEY: ci-resend-canary-not-a-secret
+        run: |
+          npm run build:ui
+          npm run test:secrets
 
       - name: Verify repeated builds leave a clean worktree
         run: npm run verify:clean-build

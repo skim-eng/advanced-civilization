@@ -27,5 +27,6 @@ The baseline audit found upstream integrations and security boundaries that must
 | Multiplayer authentication | Replaced framework-default random IDs and query-string seat tokens in Node/Pages wiring with Web Crypto IDs and a fragment-to-encrypted-HttpOnly-session exchange. | No rules or legal-action effect; only invitation and HTTP authentication transport changes. |
 | Reporting boundary | Disabled player/standalone reporting and automatic crash uploads; removed client reporter-ID lookup; made sanitized legacy triage explicitly opt-in behind a separate server-only bearer. | None; reporting and diagnostics only. |
 | API request integrity | Added strict body/shape limits, safe error serialization, expected-turn checks, and random request IDs for network moves. | No action legality or rules effect; stale/duplicate transport requests now fail before a second transition. |
+| Database reproducibility | Replaced the drifted schema snapshot with an ordered framework-0.42-compatible migration and added isolated PostgreSQL lifecycle/RLS/browser-secret tests. | None; persistence schema and test infrastructure only. |
 
 No Playwright, deployment, service provisioning, rules, map data, graphics, or gameplay change is included in this initial Phase 1 commit.
