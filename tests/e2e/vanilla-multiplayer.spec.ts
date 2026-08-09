@@ -7,9 +7,16 @@ interface CreatedGame {
   invites: Record<string, string>;
 }
 
-async function createGame(request: APIRequestContext, seed: number): Promise<CreatedGame> {
+interface GameSetup {
+  players: string[];
+  boardPreset: string;
+}
+
+const TWO_PLAYER: GameSetup = { players: ['italy', 'africa'], boardPreset: 'raw-2p' };
+
+async function createGame(request: APIRequestContext, seed: number, setup: GameSetup = TWO_PLAYER): Promise<CreatedGame> {
   const response = await request.post(`${API_BASE}/api/games`, {
-    data: { players: ['italy', 'africa'], seed, maxTurns: 60, boardPreset: 'raw-2p' },
+    data: { players: setup.players, seed, maxTurns: 60, boardPreset: setup.boardPreset },
   });
   if (response.status() !== 200) throw new Error(`Game creation failed with HTTP ${response.status()}`);
   return response.json() as Promise<CreatedGame>;
@@ -100,6 +107,45 @@ test('isolates two browser seats and observes polling after a legal move', async
     await Promise.all([italyContext.close(), africaContext.close()]);
   }
   expect([...italyExternal, ...africaExternal]).toEqual([]);
+});
+
+test('creates isolated 4- and 6-player browser sessions with distinct credentials and identities', async ({ browser, request }) => {
+  test.setTimeout(120_000);
+  const setups: GameSetup[] = [
+    { players: ['egypt', 'babylon', 'assyria', 'asia'], boardPreset: 'raw-4p-east' },
+    { players: ['africa', 'italy', 'illyria', 'thrace', 'crete', 'asia'], boardPreset: 'raw-6p' },
+  ];
+
+  for (const [index, setup] of setups.entries()) {
+    const game = await createGame(request, 150 + index, setup);
+    expect(Object.keys(game.invites).sort()).toEqual([...setup.players].sort());
+    expect(new Set(Object.values(game.invites)).size).toBe(setup.players.length);
+    expect(new Set(Object.values(game.invites).map(tokenFromInvite)).size).toBe(setup.players.length);
+
+    const contexts = await Promise.all(setup.players.map(() => browser.newContext()));
+    const traffic = await Promise.all(contexts.map(monitorExternalTraffic));
+    try {
+      const pages = await Promise.all(setup.players.map((seat, seatIndex) => openSeat(contexts[seatIndex]!, game.invites[seat]!, seat)));
+      for (const [seatIndex, page] of pages.entries()) {
+        const seat = setup.players[seatIndex]!;
+        await expect(page.getByText(new RegExp(`you are ${seat}`, 'i'))).toBeVisible();
+        expect(page.url()).not.toContain('invite=');
+      }
+
+      // Repeated normal refreshes exercise the protected fetch path without
+      // advancing or corrupting the authoritative revision.
+      const first = pages[0]!;
+      const turnBefore = await first.getByText(/^Turn \d+ \u00b7 you are /).textContent();
+      for (let refresh = 0; refresh < 3; refresh++) {
+        await first.reload();
+        await expect(first.getByText(new RegExp(`you are ${setup.players[0]}`, 'i'))).toBeVisible();
+      }
+      expect(await first.getByText(/^Turn \d+ \u00b7 you are /).textContent()).toBe(turnBefore);
+    } finally {
+      await Promise.all(contexts.map((context) => context.close()));
+    }
+    expect(traffic.flat()).toEqual([]);
+  }
 });
 
 test('rejects missing, malformed, and cross-game seat credentials on protected routes', async ({ request }) => {

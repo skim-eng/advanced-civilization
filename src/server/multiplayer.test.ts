@@ -81,6 +81,85 @@ describe('async multiplayer (GameServer + filesystem store)', () => {
     expect(egyptHand(babylonView.view)).toBe(0);          // …redacted in Babylon's view
   });
 
+  it.each([
+    { label: '2-player', players: ['italy', 'africa'], boardPreset: 'raw-2p' },
+    { label: '4-player', players: ['egypt', 'babylon', 'assyria', 'asia'], boardPreset: 'raw-4p-east' },
+    { label: '6-player', players: ['africa', 'italy', 'illyria', 'thrace', 'crete', 'asia'], boardPreset: 'raw-6p' },
+  ])('projects private state at the raw API boundary for every seat in a $label game', async ({ players, boardPreset }) => {
+    const s = makeServer();
+    const initialState = createGame({ players, boardPreset, seed: 707, maxTurns: 60 });
+    for (const [index, id] of players.entries()) {
+      initialState.players[id]!.hand = { [`hand-secret-${id}`]: index + 1 };
+      initialState.players[id]!.calamities = [`legacy-secret-${id}`];
+    }
+    initialState.players[players[0]!]!.hand.ochre = 9;
+    initialState.pendingDiscard = { holder: players[0]!, count: 1 };
+    initialState.trade.stacks[1] = ['deck-secret-first', 'deck-secret-second'];
+    initialState.rngState = 123_456_789;
+    initialState.calamityTradedFrom = { 'provenance-secret': players[1]! };
+    initialState.pendingCalamities = players.map((holder) => ({ calamityId: `queued-secret-${holder}`, holder }));
+    initialState.negotiation.offers = players.map((from, index) => ({
+      id: index + 1,
+      from,
+      give: { actual: { [`offer-secret-${from}`]: 3 }, declared: { salt: 3 } },
+      wants: ['iron'],
+      responses: [],
+    }));
+    initialState.negotiation.completed = [{
+      a: players[0]!, b: players[1]!,
+      aGave: { actual: { [`completed-secret-${players[0]}`]: 3 }, declared: { salt: 3 } },
+      bGave: { actual: { [`completed-secret-${players[1]}`]: 3 }, declared: { iron: 3 } },
+    }];
+
+    const created = await s.createGame({ initialState, players });
+    const sessions = new SeatSessionCodec('projection-test-session-secret-with-more-than-thirty-two-characters');
+    const allInviteTokens = Object.values(created.invites).map(tokenOf);
+
+    const unauthenticated = await handleApi(s, 'GET', `/api/games/${created.gameId}`, new URLSearchParams(), undefined, undefined, { sessions });
+    expect(unauthenticated).toEqual({ status: 401, body: { error: 'authentication required' } });
+
+    for (const id of players) {
+      const inviteToken = tokenOf(created.invites[id]!);
+      const exchange = await handleApi(s, 'POST', `/api/games/${created.gameId}/session`, new URLSearchParams(), { inviteToken }, undefined, { sessions });
+      expect(exchange.status).toBe(200);
+      const cookie = exchange.headers?.['set-cookie'];
+      expect(cookie).toBeTruthy();
+
+      const response = await handleApi(s, 'GET', `/api/games/${created.gameId}`, new URLSearchParams(), undefined, undefined, { sessions, cookie });
+      expect(response.status).toBe(200);
+      const body = response.body as { you: string; view: GameState };
+      const encoded = JSON.stringify(body);
+      expect(body.you).toBe(id);
+      expect(body.view.players[id]!.hand[`hand-secret-${id}`]).toBe(players.indexOf(id) + 1);
+      expect(body.view.trade.stacks[1]).toEqual(['[hidden]', '[hidden]']);
+      expect(body.view.rngState).toBe(0);
+      expect(body.view.calamityTradedFrom).toEqual({});
+
+      for (const other of players.filter((candidate) => candidate !== id)) {
+        expect(body.view.players[other]!.hand).toEqual({});
+        expect(encoded).not.toContain(`hand-secret-${other}`);
+        expect(encoded).not.toContain(`legacy-secret-${other}`);
+        expect(encoded).not.toContain(`offer-secret-${other}`);
+        expect(body.view.pendingCalamities.find((pending) => pending.holder === other)?.calamityId).toBe('[hidden]');
+      }
+      expect(encoded).not.toContain('deck-secret');
+      expect(encoded).not.toContain('provenance-secret');
+      for (const token of allInviteTokens) expect(encoded).not.toContain(token);
+
+      const legal = await handleApi(s, 'GET', `/api/games/${created.gameId}/legal`, new URLSearchParams(), undefined, undefined, { sessions, cookie });
+      expect(legal.status).toBe(200);
+      if (id === players[0]) expect(legal.body).toEqual([{ type: 'chooseDiscard', cards: ['hand-secret-' + id] }]);
+      else expect(legal.body).toEqual([]);
+    }
+
+    if (players.length > 2) {
+      const observer = players[2]!;
+      const exchange = await handleApi(s, 'POST', `/api/games/${created.gameId}/session`, new URLSearchParams(), { inviteToken: tokenOf(created.invites[observer]!) }, undefined, { sessions });
+      const observerResponse = await handleApi(s, 'GET', `/api/games/${created.gameId}`, new URLSearchParams(), undefined, undefined, { sessions, cookie: exchange.headers?.['set-cookie'] });
+      expect((observerResponse.body as { view: GameState }).view.negotiation.completed).toEqual([]);
+    }
+  });
+
   it('accepts a bug report with the game log + snapshot, retrievable by category', async () => {
     const { s, gameId, egypt } = await newGame();
     const { reportId } = await s.report(gameId, egypt, {

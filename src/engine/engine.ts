@@ -2764,6 +2764,8 @@ export class CivAdapter implements GameAdapter<GameState, Action, PlayerId> {
     // Hidden info (§27.4): trade-card hands are secret; only the holder sees them.
     if (_viewer == null) return state;
     const v = clone(state);
+    const hiddenCard = '[hidden]';
+    const emptyBefore = (): Record<string, { city?: PlayerId; tokens: Record<PlayerId, number> }> => ({});
     for (const [id, p] of Object.entries(v.players)) {
       // The NUMBER of cards a player holds is public (§27.4); expose it so rivals
       // can gauge a hand's size, then hide the actual cards for everyone else.
@@ -2772,6 +2774,85 @@ export class CivAdapter implements GameAdapter<GameState, Action, PlayerId> {
         p.hand = {} as Record<string, number>;
         p.calamities = [];
       }
+    }
+    // The ordered trade stacks and serialized RNG are authoritative server
+    // state. Clients need stack *sizes* (notably for the ninth-stack purchase
+    // control), never the future card order or random seed/state.
+    for (const [stack, cards] of Object.entries(v.trade.stacks)) {
+      v.trade.stacks[Number(stack)] = cards.map(() => hiddenCard);
+    }
+    v.rngState = 0;
+
+    // A calamity card remains private while it is held or merely queued. The
+    // holder can see their own queued identity; rivals receive only a stable
+    // placeholder and the non-secret fact that the holder has a pending card.
+    v.pendingCalamities = v.pendingCalamities.map((pending) => pending.holder === _viewer
+      ? pending
+      : { ...pending, calamityId: hiddenCard });
+    // Provenance affects authoritative resolution but can reveal who passed a
+    // still-hidden calamity. No client action needs this internal lookup table.
+    v.calamityTradedFrom = {};
+
+    // Pending choices may contain candidate sets, partially selected factions,
+    // or resume snapshots. The named decision-maker gets the live choice; all
+    // other seats retain only enough role/stage metadata for currentActor() and
+    // the waiting UI. Resume snapshots are server-only for every role.
+    if (v.pendingAllocation) {
+      v.pendingAllocation.before = emptyBefore();
+      v.pendingAllocation.overviewBefore = '';
+      if (v.pendingAllocation.holder !== _viewer) {
+        v.pendingAllocation.caps = {};
+        v.pendingAllocation.areas = [];
+      }
+    }
+    if (v.pendingCityChoice) {
+      v.pendingCityChoice.before = emptyBefore();
+      v.pendingCityChoice.overviewBefore = '';
+    }
+    if (v.pendingUnitLoss) {
+      v.pendingUnitLoss.before = emptyBefore();
+      v.pendingUnitLoss.overviewBefore = '';
+      if (v.pendingUnitLoss.holder !== _viewer) v.pendingUnitLoss.areas = [];
+    }
+    if (v.pendingSupport) {
+      v.pendingSupport.before = emptyBefore();
+      v.pendingSupport.overviewBefore = '';
+      if (v.pendingSupport.holder !== _viewer) v.pendingSupport.candidates = [];
+    }
+    if (v.pendingPick) {
+      v.pendingPick.before = emptyBefore();
+      v.pendingPick.overviewBefore = '';
+      if (v.pendingPick.chooser !== _viewer) {
+        v.pendingPick.candidates = [];
+        v.pendingPick.march = undefined;
+      }
+    }
+    if (v.pendingCivilWar) {
+      v.pendingCivilWar.before = emptyBefore();
+      v.pendingCivilWar.overviewBefore = '';
+      const chooser = civilWarActor(v.pendingCivilWar);
+      if (chooser !== _viewer) {
+        v.pendingCivilWar.faction1 = { tokens: {}, cities: [] };
+        v.pendingCivilWar.faction2 = undefined;
+      }
+    }
+    if (v.pendingSecondary) {
+      v.pendingSecondary.before = emptyBefore();
+      v.pendingSecondary.overviewBefore = '';
+      v.pendingSecondary.queue = v.pendingSecondary.queue.map((loss) => ({
+        victim: loss.victim,
+        kind: loss.kind,
+        amount: 0,
+        cityWorth: 0,
+        areas: [],
+      }));
+    }
+    if (v.expansion) {
+      v.expansion.remaining = Object.fromEntries(Object.entries(v.expansion.remaining).filter(([id]) => id === _viewer));
+      v.expansion.caps = Object.fromEntries(Object.entries(v.expansion.caps).filter(([id]) => id === _viewer));
+    }
+    if (v.pendingRevolts) {
+      v.pendingRevolts = Object.fromEntries(Object.entries(v.pendingRevolts).filter(([id]) => id === _viewer));
     }
     // Open offers & responses: ACTUAL cards are secret (§28.3) — everyone sees
     // the announced `declared` (incl. bluffs) but not the real cards until a deal
