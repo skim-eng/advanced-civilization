@@ -10,6 +10,7 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
+    "test:e2e": "playwright test",
     "test:watch": "vitest",
     "extract": "node --experimental-strip-types scripts/extract-map.ts",
     "build:board": "node scripts/build-board.mjs",
@@ -27,6 +28,7 @@
     "react-dom": "^19.2.7"
   },
   "devDependencies": {
+    "@playwright/test": "1.62.1",
     "@types/node": "^22.0.0",
     "@vitejs/plugin-react": "^4.7.0",
     "sharp": "^0.35.2",

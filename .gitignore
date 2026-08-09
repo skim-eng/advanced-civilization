@@ -2,6 +2,9 @@
 node_modules/
 dist/
 dist-ui/
+playwright-report/
+test-results/
+blob-report/
 *.tgz
 package/
 

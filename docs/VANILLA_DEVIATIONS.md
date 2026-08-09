@@ -23,5 +23,6 @@ The baseline audit found upstream integrations and security boundaries that must
 |---|---|---|
 | Continuous integration | Added a GitHub Actions workflow that runs `npm ci`, `npm test`, `npm run typecheck`, `npm run build`, and `npm run build:ui` on pushes and pull requests with Node.js 24. | None. |
 | Development log hygiene | Redact seat and service credential query values from Vite development log messages, including proxy errors. | None. |
+| Browser test harness | Added Playwright 1.62.1 with isolated seat contexts, external-network blocking, sanitized artifacts, temporary persistence, and API concurrency/authorization coverage. | None. |
 
 No Playwright, deployment, service provisioning, rules, map data, graphics, or gameplay change is included in this initial Phase 1 commit.

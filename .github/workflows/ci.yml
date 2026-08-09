@@ -41,3 +41,9 @@ jobs:
 
       - name: Build UI
         run: npm run build:ui
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run isolated multiplayer browser tests
+        run: npm run test:e2e
