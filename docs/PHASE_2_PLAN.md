@@ -29,20 +29,20 @@ accepted risk merely to finish the phase.
 | Gate | Required evidence | Status |
 |---|---|---|
 | P2-01 merge and history | PR #2 final head/checks/mergeability reconfirmed; ordinary merge SHA, `main`, baseline branch/tag, branch, PR, and run IDs recorded | PASS — PR #2 merged as `ba773789c52f3757f68ea459abeb7da8a8f01f27`; protected refs will be rechecked at final gate |
-| P2-02 clean source gate | Clean checkout of exact deployment SHA: `npm ci`, both audits, 199 unit tests, schema, RLS, typecheck, server/UI builds, secret scan, deterministic build, and six Playwright tests | PENDING |
-| P2-03 deployment controls | No broad CORS; same-origin API; CSP, no-referrer, nosniff, HSTS, DENY/frame-ancestors, Permissions-Policy, noindex/nofollow/noarchive, and `robots.txt` deny | PENDING |
-| P2-04 Supabase infrastructure | Dedicated owner staging project/reference on free tier; ordered migrations applied from zero; checksum recorded | PENDING |
-| P2-05 hosted schema and RLS | Expected tables/columns/indexes/RLS; no public policies; anon/authenticated PostgREST CRUD denial; server-only service lifecycle and targeted cleanup | PENDING |
-| P2-06 hosted Realtime | Actual hosted channel emits state-free refresh signals only; unauthorized direct table/state access denied; polling fallback remains functional | PENDING |
-| P2-07 Cloudflare infrastructure | Owner Pages project builds `dist-ui` plus `functions/`; deployment SHA/ID and encrypted secret names recorded; upstream/report/analytics/email integrations off | PENDING |
-| P2-08 Cloudflare Access | Entire Pages hostname and `/api/*` deny unauthenticated browser and raw HTTP; authorized owner/test access works | PENDING |
+| P2-02 clean source gate | Clean checkout of exact deployment SHA: `npm ci`, both audits, 202 unit tests, schema, RLS, typecheck, server/UI/Functions builds, deployment/secret scans, deterministic build, and six Playwright tests | PENDING |
+| P2-03 deployment controls | No broad CORS; same-origin API; CSP, no-referrer, nosniff, HSTS, DENY/frame-ancestors, Permissions-Policy, noindex/nofollow/noarchive, and `robots.txt` deny | PARTIAL — implementation/unit/build checks pass; hosted headers await the first gated deployment |
+| P2-04 Supabase infrastructure | Dedicated owner staging project/reference on free tier; ordered migrations applied from zero; checksum recorded | PASS — `csbcmaiytgotctodxahz`, `us-east-1`, migration SHA-256 `78c377bbde6417871177833aec31cb8fdefb7df86e9c3873f1f4af13a46801c2` |
+| P2-05 hosted schema and RLS | Expected tables/columns/indexes/RLS; no public policies; anon/authenticated PostgREST CRUD denial; server-only service lifecycle and targeted cleanup | PASS — all four tables/catalogs correct; anon 401, authenticated 403, service lifecycle 201/200/204, zero rows after cleanup |
+| P2-06 hosted Realtime | Actual hosted channel emits state-free refresh signals only; unauthorized direct table/state access denied; polling fallback remains functional | PARTIAL — hosted provider delivered `{turn}` and `{}` only and no `dbf_*` table is published; end-to-end deployed refresh/polling remains pending |
+| P2-07 Cloudflare infrastructure | Owner Pages project builds `dist-ui` plus `functions/`; deployment SHA/ID and encrypted secret names recorded; upstream/report/analytics/email integrations off | PARTIAL — project `kimsvideo-civ-vanilla` exists with zero deployments, encrypted secrets, fail-closed Functions, and a successful local Wrangler Functions build |
+| P2-08 Cloudflare Access | Entire Pages hostname and `/api/*` deny unauthenticated browser and raw HTTP; authorized owner/test access works | BLOCKED — Zero Trust Free is `$0/month`, but activation requires accepting card charges for usage above free limits; no consent was given and no deployment was made |
 | P2-09 private Pages URL | SPA and Function health, headers, invitation/referrer, API, persistence, Realtime/polling, and multiplayer matrix pass | PENDING |
-| P2-10 custom domain | Existing zone only; DNS/TLS active, `PUBLIC_BASE_URL` updated, redeployed, and P2-08/P2-09 repeated; otherwise exact blocker recorded | PENDING |
-| P2-11 artifact and IP boundary | Built assets/source maps contain no canary/secret/server-only variable/upstream credential/invitation/private fixture; manifest has no VASSAL module, extracted art, OCR rules PDF, or deploy-only proprietary asset | PENDING |
+| P2-10 custom domain | Existing zone only; DNS/TLS active, `PUBLIC_BASE_URL` updated, redeployed, and P2-08/P2-09 repeated; otherwise exact blocker recorded | NOT APPLICABLE — this Cloudflare account reports zero domains/subdomains, so no `kimsvideo.org` zone or DNS record is available and no DNS was changed |
+| P2-11 artifact and IP boundary | Built assets/source maps contain no canary/secret/server-only variable/upstream credential/invitation/private fixture; manifest has no VASSAL module, extracted art, OCR rules PDF, or deploy-only proprietary asset | PARTIAL — local browser/Functions manifest passes; repeat at final deployment SHA after provider build |
 | P2-12 hosted multiplayer/security | Raw API plus isolated browser contexts for 2/4/6 players cover identity/isolation/redaction/auth/legal/off-clock/refresh/reconnect/redeploy persistence/chat/malformed/stale/duplicate/race/failure behavior | PENDING |
 | P2-13 invitation diagnostics | Invitation disappears from visible URL/history after exchange and is absent from referrers, logs, console, screenshots, traces, videos, source maps, error bodies, and analytics | PENDING |
 | P2-14 limited soak | Ten mixed-seat games within free-tier limits; measured requests/status/latency and Realtime/polling observations recorded without capacity extrapolation | PENDING |
-| P2-15 cleanup and rollback | Targeted test-data cleanup; Pages rollback rehearsed; Supabase backup/restore or plan-appropriate rollback documented and exercised to the safe extent supported | PENDING |
+| P2-15 cleanup and rollback | Targeted test-data cleanup; Pages rollback rehearsed; Supabase backup/restore or plan-appropriate rollback documented and exercised to the safe extent supported | PARTIAL — provider fixtures were deleted and schema recovery was rehearsed from the canonical migration; free-plan data restore and Pages rollback remain unclaimed |
 | P2-16 records and disposition | Architecture, deployment, decisions, security, issues, deviations, migrations, multiplayer/manual records, and `VANILLA_STAGING_ACCEPTANCE.md` complete with PASS/CONDITIONAL PASS/FAIL | PENDING |
 | P2-17 PR/merge gate | Phase 2 PR exact head green and staging revalidated at that head; merge only for PASS, then record/revalidate merge SHA | PENDING |
 
@@ -60,6 +60,14 @@ Required server configuration is `SUPABASE_URL`,
 `RESEND_API_KEY`, `MAIL_FROM`, `RATINGS_INGEST_KEY`,
 `REPORT_ADMIN_ENABLED`, `REPORT_ADMIN_TOKEN`,
 `ENABLE_UPSTREAM_SERVICES`, and `UPSTREAM_HUB_URL` absent or disabled.
+
+Current Pages configuration contains plaintext non-secret variables
+`SUPABASE_URL`, `PUBLIC_BASE_URL`, `NODE_VERSION`, `VITE_SUPABASE_URL`,
+`VITE_SUPABASE_ANON_KEY`, `ENABLE_UPSTREAM_SERVICES`,
+`VITE_ENABLE_UPSTREAM_SERVICES`, and `REPORT_ADMIN_ENABLED`. Only
+`SUPABASE_SERVICE_KEY` and `SESSION_SECRET` are encrypted secrets. Values are
+not recorded here. Email, ratings, report administration, and owner-hub
+variables are absent.
 
 ## Provider and migration procedure
 

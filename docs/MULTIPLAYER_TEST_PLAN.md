@@ -1,8 +1,10 @@
 # Vanilla multiplayer test plan
 
-Status: Phase 1 local matrix implemented and passing at
-`c0ee66fa4b3cddd9b0c3b36647ac718c1be21f26`; final hosted run pending. Phase 2
-deployment/device/load cases remain separately gated.
+Status: Phase 1 local matrix implemented and passing. Phase 2 adds a hosted
+base-URL mode, exact-host network allowlist, same-origin Access-header routing,
+hosted Realtime signal observation, and a targeted game-ID cleanup manifest.
+The hosted run remains blocked before deployment by Cloudflare Access
+activation.
 
 ## Test principles
 

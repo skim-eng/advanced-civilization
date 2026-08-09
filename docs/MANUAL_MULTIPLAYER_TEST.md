@@ -40,3 +40,12 @@ repeatable evidence than shared manual tabs.
 
 These omissions are explicit Phase 2/device limitations. They do not replace
 the automated local acceptance matrix and are not represented as passing.
+
+## Phase 2 provider checkpoint
+
+The owner Supabase project passed hosted catalog, PostgREST role, service
+lifecycle/cleanup, and state-free Realtime checks. The Cloudflare Pages project
+was created with zero deployments and therefore no browser multiplayer claim is
+made. Access activation stopped at a checkout requiring possible overage card
+charges; no checkboxes were accepted. The Cloudflare account reports no domain
+zone, so custom-domain and physical-device/cross-network checks remain unrun.

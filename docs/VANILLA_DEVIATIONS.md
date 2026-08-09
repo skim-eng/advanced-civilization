@@ -35,3 +35,16 @@ Phase 1 changes no rules, actions, legality, map/play-area data, civilization,
 commodity, advance, calamity, scoring, graphics, or normal gameplay outcome. The
 only engine-file change is the server-facing `viewFor` projection. No deployment
 or service provisioning is included.
+
+## Phase 2
+
+| Area | Change | Gameplay effect |
+|---|---|---|
+| Deployment response policy | Added root Pages middleware for CSP, HSTS, no-referrer, nosniff, DENY/frame-ancestors, Permissions-Policy, noindex/noarchive, and API no-store; added `robots.txt`. | None. |
+| Origin boundary | Removed the Pages wildcard CORS preflight and reject browser writes whose `Origin` differs from the exact application origin. | None; transport security only. |
+| Cloudflare packaging | Renamed the Wrangler project to `kimsvideo-civ-vanilla`, compiled Functions, stored server secrets encrypted, and selected fail-closed behavior. No deployment exists. | None. |
+| Hosted verification | Added hosted Playwright configuration, Realtime evidence, targeted cleanup, and deployment artifact/IP scanners. | None; tests and operations only. |
+| Supabase staging | Applied the unchanged Phase 1 ordered migration to a dedicated owner project and verified RLS/PostgREST/service-role/Realtime boundaries. | None; persistence provider only. |
+
+No Phase 2 change alters rules, actions, legality, map/game data, graphics,
+scoring, deterministic RNG, or normal vanilla gameplay.

@@ -2,11 +2,25 @@
 
 ## Status
 
-No Project Chronicle infrastructure has been created or deployed in Phase 0. The target is `https://civ-vanilla.kimsvideo.org`; use an owner-controlled private `*.pages.dev` URL first if DNS is not immediately available.
+Phase 2 created the dedicated Supabase project `csbcmaiytgotctodxahz` and the
+Cloudflare Pages project `kimsvideo-civ-vanilla`. The Pages project has zero
+deployments; nothing is publicly hosted. Its future default URL is
+`https://kimsvideo-civ-vanilla.pages.dev`.
+
+Cloudflare Access is currently blocked before deployment: the `$0/month` Zero
+Trust Free checkout requires explicit authorization to charge the stored card
+for usage above included limits. That authorization was not granted. Do not
+deploy until the owner explicitly accepts that condition or supplies a
+charge-free alternative.
+
+The selected Cloudflare account currently reports zero domains or subdomains,
+so it does not contain the `kimsvideo.org` zone. The conditional custom-domain
+step is therefore not applicable and no DNS record was changed.
 
 The upstream-supported architecture is retained: Cloudflare Pages + Pages Functions, Supabase Postgres, optional Supabase Realtime, and optional Resend. The planned Cloudflare project name is `kimsvideo-civ-vanilla`.
 
-Do not deploy until the Phase 0/1 staging blockers in `SECURITY_NOTES.md` are repaired and tested.
+Do not deploy until the remaining Phase 2 gates in `PHASE_2_PLAN.md` are
+repaired and tested.
 
 ## Prerequisites
 
@@ -28,6 +42,10 @@ Do not deploy until the Phase 0/1 staging blockers in `SECURITY_NOTES.md` are re
 - Wrangler config: `wrangler.toml` with `pages_build_output_dir = "dist-ui"` and `nodejs_compat`.
 
 Verify that deployment builds both `dist-ui` and the catch-all `functions/api/[[path]].ts`. A static-only success is not a multiplayer deployment.
+
+Wrangler 4.120.0 compiled the current Pages Functions locally. The Pages
+project is configured fail-closed when the Functions free allowance is
+exhausted; it must never silently serve a static-only multiplayer shell.
 
 ## Supabase migration
 
@@ -51,6 +69,10 @@ Required procedure:
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_KEY` — secret, service role, never exposed to Vite
 - `PUBLIC_BASE_URL=https://civ-vanilla.kimsvideo.org`
+
+Current initial value: `PUBLIC_BASE_URL=https://kimsvideo-civ-vanilla.pages.dev`.
+`SUPABASE_SERVICE_KEY` and `SESSION_SECRET` are stored as encrypted secrets.
+Only names, never values, are recorded.
 
 Keep these unset for the first deployment unless explicitly approved:
 
@@ -118,12 +140,23 @@ Do not modify or link from the main `kimsvideo.org` homepage in this phase.
 ## Rollback and incident controls
 
 - **Cloudflare rollback:** Pages project → Deployments → select the last known-good deployment → Rollback to this deployment. Revalidate Functions as well as static assets.
-- **Supabase export/restore:** use a documented `pg_dump`/Supabase backup appropriate to the plan before schema changes; test restoration into a separate project or database when available.
+- **Supabase free-plan recovery:** automatic backups and point-in-time recovery
+  are unavailable on the selected plan. Before any future schema change, create
+  an untracked logical dump with the Supabase CLI/`pg_dump`, verify its checksum
+  without printing credentials, and keep the ordered migrations as the
+  canonical schema recovery source. Restore only into a separate disposable
+  project/database and compare the reviewed catalog before changing staging.
+  The current schema-recovery path was rehearsed by applying the canonical
+  migration from zero in hosted staging and in isolated PGlite. No owner game
+  data exists yet, so a data-restore claim is neither needed nor made.
 - **Disable game creation:** apply an emergency Pages/Access rule that blocks `POST /api/games` or roll back to a deployment with creation disabled; do not rely on hiding the button.
 - **Leaked service key:** rotate the Supabase service-role secret, update the Cloudflare encrypted secret, redeploy, review logs, and revoke the old key. Never place either value in a ticket or screenshot.
 - **Leaked seat link:** no revocation mechanism exists in baseline. Archive/delete the affected test game and create a new one; long-term session/token rotation is required.
 - **Test-game cleanup:** identify staging games by recorded IDs/time window, export if required, then delete through a reviewed administrative procedure. Avoid broad unqualified deletes.
 - **Reports:** game deletion does not remove reports. Apply the separately documented retention/deletion process.
+
+Cloudflare rollback cannot be rehearsed while the project has zero deployments.
+It remains a hard acceptance gate after the first Access-protected deployment.
 
 ## Evidence to record in Phase 2
 

@@ -98,6 +98,35 @@ PostgREST/Realtime, Cloudflare Access/headers/domain, backup/rollback, and
 load/soak were not run because Phase 1 prohibits provisioning or deployment.
 They remain explicit Phase 2 gates.
 
+## Phase 2 provider checkpoint
+
+- Date: 2026-08-09
+- Branch: `codex/phase2-vanilla-staging`
+- Application deployment: none; Cloudflare Access is not active, so the
+  private-hosting prerequisite is not satisfied.
+- Supabase staging project: `csbcmaiytgotctodxahz` (`us-east-1`, Free).
+
+The reviewed migration was applied from zero to the dedicated hosted project.
+The hosted catalog contains the four expected `dbf_*` tables with RLS enabled,
+zero policies, no `anon` or `authenticated` table privileges, and the expected
+service-role privileges. Direct PostgREST checks returned `401` for four anon
+reads and `403` for four authenticated reads; service-role inserts returned
+`201`, reads returned `200`, and targeted cleanup returned `204` with all four
+table counts back at zero. The temporary Auth test user was deleted.
+
+An actual hosted Realtime subscription connected successfully. Framework
+broadcasts carried only `{ turn }` for the move refresh signal and `{}` for the
+message refresh signal. No `dbf_*` table is in the
+`supabase_realtime` publication, so database rows are not streamed to browser
+roles.
+
+The deployed 2/4/6-player browser and raw-API matrix, copied-invitation test,
+application-redeploy persistence, polling fallback, hosted Realtime refresh,
+ten-game soak, latency/request measurements, rollback, and final cleanup are
+not claimed. They remain blocked until Cloudflare Access can be activated
+without violating the no-charge authorization boundary and an exact green SHA
+can be deployed privately.
+
 ## Vanilla integrity
 
 The Phase 1 diff changes no file under `src/data`, no map/graphics/artwork, and no
