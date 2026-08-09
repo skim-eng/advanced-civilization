@@ -16,6 +16,7 @@
     "build:board": "node scripts/build-board.mjs",
     "dev": "vite",
     "build:ui": "vite build",
+    "verify:clean-build": "node scripts/verify-clean-build.mjs",
     "serve": "tsc -p tsconfig.json && node dist/server/http.js",
     "build:coasts": "node scripts/build-coasts.mjs"
   },
