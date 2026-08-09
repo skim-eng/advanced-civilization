@@ -1,6 +1,6 @@
 import { Component, StrictMode, useEffect, useState, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { UpdateBanner, SplashScreen } from 'digital-boardgame-framework/client';
+import { UpdateBanner } from 'digital-boardgame-framework/client';
 import App from './App.js';
 import { Lobby, OnlineGame } from './online.js';
 import DevApp from './dev/DevApp.js';
@@ -85,24 +85,18 @@ function Root() {
       <p className="civ-lbl" style={{ color: '#aaa', maxWidth: 560, textAlign: 'center' }}>
         Hotseat runs entirely in your browser and auto-saves on this device — an interrupted game can be resumed from its setup screen.
         Online multiplayer creates a shareable game with a link per seat; online games (including vs AI) live on the server, so you can
-        close the tab and pick them up any time, from any device — and signed-in results count on the leaderboard.
+        close the tab and pick them up any time, from any device.
       </p>
     </div>
   );
   return <>{modal}{body}</>;
 }
 
-// The dev authoring tools (?dev) keep the update banner (a thin top strip, so you
-// still get "reload" when a new build ships) but drop the full-screen splash modal
-// that would cover the editor.
-const isDev = new URLSearchParams(location.search).has('dev');
-
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     {/* Shows a "A new version is available — Reload" banner when a newer build
         is deployed while this tab is open (polls /version.json). */}
     <UpdateBanner currentBuild={__DBF_BUILD_ID__} />
-    {!isDev && <SplashScreen title="Advanced Civilization" appId="advanced-civilization" />}
     <ErrorBoundary><Root /></ErrorBoundary>
   </StrictMode>,
 );

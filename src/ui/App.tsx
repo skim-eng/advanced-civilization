@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type CSSProperties } from 'react';
-import { Rng, recordPlay } from 'digital-boardgame-framework';
+import { Rng } from 'digital-boardgame-framework';
 import { adapter, createGame, victoryScore } from '../engine/index.js';
 import type { Action, GameState, PlayerId, CalamityEvent, CombatEvent } from '../engine/index.js';
 import { advanceById, advances as ALL_ADVANCES, adjacency, areaById, astTrackFor, calamityById, civById, civilizations, commodityById, epochs, playAreas, ADVANCE_EFFECTS, CALAMITY_DESC } from '../data/index.js';
@@ -19,6 +19,20 @@ const DEFAULT_PLAYERS: PlayerId[] = ['egypt', 'babylon', 'assyria', 'asia'];
 const ai = new HeuristicAI();
 const BARB = '__barbarian__';
 const PIRATE = '__pirate__';
+const OWNER_HUB_URL = import.meta.env.VITE_ENABLE_UPSTREAM_SERVICES === 'true'
+  ? import.meta.env.VITE_UPSTREAM_HUB_URL?.replace(/\/+$/, '')
+  : undefined;
+
+async function recordOwnerPlay(mode: 'ai' | 'hotseat'): Promise<void> {
+  if (!OWNER_HUB_URL) return;
+  try {
+    await fetch(`${OWNER_HUB_URL}/stats/hit`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ game: 'advanced-civilization', mode }),
+    });
+  } catch { /* optional owner telemetry never affects play */ }
+}
 export type View = 'map' | 'ast' | 'census' | 'tools' | 'goods' | 'log';
 
 // ---- Local autosave (report f60ac6cf) -------------------------------------
@@ -135,8 +149,9 @@ function CivSetup({ onStart, initial }: { onStart: (human: PlayerId, opponents: 
 function PlayCount() {
   const [n, setN] = useState<number | null>(null);
   useEffect(() => {
+    if (!OWNER_HUB_URL) return;
     let live = true;
-    fetch('https://games-hub-5vo.pages.dev/stats?game=advanced-civilization')
+    fetch(`${OWNER_HUB_URL}/stats?game=advanced-civilization`)
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => { if (live && d && typeof d.count === 'number') setN(d.count); })
       .catch(() => {});
@@ -172,7 +187,7 @@ export default function App() {
     setStarted(true);
     // Best-effort games-played counter (once per local game start). Local games
     // always include AI opponents, so the mode is 'ai'. Never throws/blocks.
-    void recordPlay('advanced-civilization', 'ai');
+    void recordOwnerPlay('ai');
   }, []);
 
   const actor = adapter.currentActor(state);

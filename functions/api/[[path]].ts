@@ -19,16 +19,20 @@ interface Env {
   PUBLIC_BASE_URL?: string;
   /** Shared secret matching the hub's RATINGS_INGEST_KEY (enables ranked play). */
   RATINGS_INGEST_KEY?: string;
+  /** Optional external integrations remain off unless this is exactly `true`. */
+  ENABLE_UPSTREAM_SERVICES?: string;
+  /** Owner-controlled identity/counter/rating service base URL. */
+  UPSTREAM_HUB_URL?: string;
 }
 
-// Hub identity verification: fetch + cache the hub's JWKS (1h) so claimSeat can
-// verify the signed identity tokens players present.
-const HUB = 'https://games-hub-5vo.pages.dev';
+// Optional identity verification: no fetch is reachable under default config.
 let _jwks: Jwks | undefined;
 let _jwksAt = 0;
-async function getJwks(): Promise<Jwks> {
+let _jwksUrl: string | undefined;
+async function getJwks(hubUrl: string): Promise<Jwks> {
+  if (_jwksUrl !== hubUrl) { _jwks = undefined; _jwksAt = 0; _jwksUrl = hubUrl; }
   if (!_jwks || Date.now() - _jwksAt > 3_600_000) {
-    _jwks = (await (await fetch(`${HUB}/id/jwks`)).json()) as Jwks;
+    _jwks = (await (await fetch(`${hubUrl}/id/jwks`)).json()) as Jwks;
     _jwksAt = Date.now();
   }
   return _jwks;
@@ -54,6 +58,13 @@ export const onRequest: PagesFunction<Env> = async (ctx) => {
     ? new ResendNotifier({ apiKey: env.RESEND_API_KEY, from: env.MAIL_FROM ?? 'Advanced Civilization <noreply@example.com>' })
     : new NoopNotifier();
   const site = (env.PUBLIC_BASE_URL ?? url.origin).replace(/\/$/, '');
+  let hubUrl: string | undefined;
+  if (env.ENABLE_UPSTREAM_SERVICES === 'true') {
+    if (!env.UPSTREAM_HUB_URL) return new Response(JSON.stringify({ error: 'server configuration error' }), { status: 500, headers: { 'content-type': 'application/json' } });
+    const parsed = new URL(env.UPSTREAM_HUB_URL);
+    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return new Response(JSON.stringify({ error: 'server configuration error' }), { status: 500, headers: { 'content-type': 'application/json' } });
+    hubUrl = parsed.toString().replace(/\/+$/, '');
+  }
 
   const store = new SupabaseStore(supabase);
   const server = new GameServer<GameState, Action, string>({
@@ -69,14 +80,12 @@ export const onRequest: PagesFunction<Env> = async (ctx) => {
     // Stamp every in-game report with this app's id so triage can isolate our
     // reports on the shared backend.
     appId: APP_ID,
-    // Best-effort games-played counter: createGame fires an 'online' beacon to
-    // the hub. Never affects the request (failures/timeouts are swallowed).
-    playBeacon: { appId: APP_ID },
-    // Ranked play: verify hub identity tokens (claimSeat) + auto-report results
-    // to the leaderboard when the ingest key is configured.
-    verifyIdentity: async (t) => verifyIdentityToken(t, await getJwks()),
-    ...(env.RATINGS_INGEST_KEY
-      ? { ratings: { game: 'advanced-civilization', ingestKey: env.RATINGS_INGEST_KEY } }
+    ...(hubUrl ? {
+      playBeacon: { appId: APP_ID, url: `${hubUrl}/stats/hit` },
+      verifyIdentity: async (t: string) => verifyIdentityToken(t, await getJwks(hubUrl!)),
+    } : {}),
+    ...(hubUrl && env.RATINGS_INGEST_KEY
+      ? { ratings: { game: 'advanced-civilization', ingestKey: env.RATINGS_INGEST_KEY, hubUrl } }
       : {}),
   });
 

@@ -14,15 +14,33 @@ import { APP_ID } from '../report-meta.js';
 
 const env = (k: string) => (typeof process !== 'undefined' ? process.env[k] : undefined);
 
-// Hub identity verification (dev parity): fetch + cache the hub's JWKS (1h) so
-// claimSeat verifies signed identity tokens locally too. Ratings auto-report is
-// left OFF in dev (no ingest key) so local games don't hit the real leaderboard.
-const HUB = 'https://games-hub-5vo.pages.dev';
+export interface UpstreamServiceConfig {
+  hubUrl: string;
+  playBeaconUrl: string;
+}
+
+/** Upstream identity/rating/counter support is intentionally opt-in. Merely
+ * setting an endpoint is insufficient: the owner must also set the feature
+ * flag, which prevents an inherited environment from silently enabling egress. */
+export function upstreamServiceConfig(get = env): UpstreamServiceConfig | undefined {
+  if (get('ENABLE_UPSTREAM_SERVICES') !== 'true') return undefined;
+  const raw = get('UPSTREAM_HUB_URL');
+  if (!raw) throw new Error('UPSTREAM_HUB_URL is required when ENABLE_UPSTREAM_SERVICES=true');
+  const url = new URL(raw);
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') throw new Error('UPSTREAM_HUB_URL must use HTTP(S)');
+  const hubUrl = url.toString().replace(/\/+$/, '');
+  return { hubUrl, playBeaconUrl: `${hubUrl}/stats/hit` };
+}
+
+// Optional owner-configured identity verification: fetch + cache JWKS for one
+// hour only when the explicit upstream feature flag is enabled.
 let _jwks: Jwks | undefined;
 let _jwksAt = 0;
-async function getJwks(): Promise<Jwks> {
+let _jwksUrl: string | undefined;
+async function getJwks(hubUrl: string): Promise<Jwks> {
+  if (_jwksUrl !== hubUrl) { _jwks = undefined; _jwksAt = 0; _jwksUrl = hubUrl; }
   if (!_jwks || Date.now() - _jwksAt > 3_600_000) {
-    _jwks = (await (await fetch(`${HUB}/id/jwks`)).json()) as Jwks;
+    _jwks = (await (await fetch(`${hubUrl}/id/jwks`)).json()) as Jwks;
     _jwksAt = Date.now();
   }
   return _jwks;
@@ -62,6 +80,7 @@ export type CivGameServer = GameServer<GameState, Action, string>;
  *  links (and turn-email links). */
 export async function buildGameServer(baseUrl = env('PUBLIC_BASE_URL') ?? 'http://localhost:8787'): Promise<CivGameServer> {
   const [store, broadcaster, notifier] = await Promise.all([makeStore(), makeBroadcaster(), makeNotifier()]);
+  const upstream = upstreamServiceConfig();
   return new GameServer<GameState, Action, string>({
     adapter,
     codec,
@@ -72,11 +91,10 @@ export async function buildGameServer(baseUrl = env('PUBLIC_BASE_URL') ?? 'http:
     // Stamp every in-game report with this app's id so triage can isolate our
     // reports on the shared backend.
     appId: APP_ID,
-    // Best-effort games-played counter (mirrors the Pages Function): createGame
-    // fires an 'online' beacon to the hub; never affects the request.
-    playBeacon: { appId: APP_ID },
-    // Dev parity: verify hub identity tokens for claimSeat.
-    verifyIdentity: async (t) => verifyIdentityToken(t, await getJwks()),
+    ...(upstream ? {
+      playBeacon: { appId: APP_ID, url: upstream.playBeaconUrl },
+      verifyIdentity: async (t: string) => verifyIdentityToken(t, await getJwks(upstream.hubUrl)),
+    } : {}),
   });
 }
 

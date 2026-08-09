@@ -21,12 +21,18 @@ function tokenFromInvite(invite: string): string {
   return token;
 }
 
-async function blockExternalTraffic(context: BrowserContext): Promise<void> {
+async function monitorExternalTraffic(context: BrowserContext): Promise<string[]> {
+  const unexpected: string[] = [];
   await context.route(/^https?:\/\//, async (route) => {
-    const host = new URL(route.request().url()).hostname;
+    const requestUrl = new URL(route.request().url());
+    const host = requestUrl.hostname;
     if (host === '127.0.0.1') await route.continue();
-    else await route.abort('blockedbyclient');
+    else {
+      unexpected.push(`${route.request().method()} ${requestUrl.origin}${requestUrl.pathname}`);
+      await route.abort('blockedbyclient');
+    }
   });
+  return unexpected;
 }
 
 async function openSeat(context: BrowserContext, invite: string, expectedSeat: string): Promise<Page> {
@@ -62,7 +68,10 @@ test('isolates two browser seats and observes polling after a legal move', async
 
   const italyContext = await browser.newContext();
   const africaContext = await browser.newContext();
-  await Promise.all([blockExternalTraffic(italyContext), blockExternalTraffic(africaContext)]);
+  const [italyExternal, africaExternal] = await Promise.all([
+    monitorExternalTraffic(italyContext),
+    monitorExternalTraffic(africaContext),
+  ]);
 
   try {
     const [italyPage, africaPage] = await Promise.all([
@@ -83,6 +92,7 @@ test('isolates two browser seats and observes polling after a legal move', async
   } finally {
     await Promise.all([italyContext.close(), africaContext.close()]);
   }
+  expect([...italyExternal, ...africaExternal]).toEqual([]);
 });
 
 test('rejects missing, malformed, and cross-game seat credentials on protected routes', async ({ request }) => {
