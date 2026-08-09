@@ -2,7 +2,41 @@
 
 ## Current status
 
-Phase 1 has **not** begun. This document records only multiplayer evidence actually executed during the untouched Phase 0 baseline. No Playwright, manual-browser, Realtime, real-device, deployment, or load result is claimed here.
+Phase 1 began on `test/vanilla-multiplayer` after Phase 0 merged at `31fad73503d91f8d4b8b5210e537cbd24ad81975`. Hosted CI and a sanitized untouched-local smoke test have passed. No Playwright, isolated browser-context, Realtime, real-device, deployment, or load result is claimed yet.
+
+## Phase 1 CI foundation
+
+- Tested commit: `f54def08a5c36e859836f48e331909c9068ef5f5`
+- GitHub Actions run: `31314327823`
+- Runner: `ubuntu-latest`; application runtime: Node.js 24
+- Result: **PASS** in 27 seconds with no annotations
+- Steps passed: `npm ci`, `npm test` (174/174), `npm run typecheck`, `npm run build`, and `npm run build:ui`
+- The workflow performs no deployment and has read-only repository permissions.
+
+## Phase 1 untouched local smoke test
+
+- Date: 2026-08-09
+- Tested commit: `f54def08a5c36e859836f48e331909c9068ef5f5`
+- Topology: Vite on loopback port 5173 proxying to the Node API on port 8787
+- Persistence: unique temporary filesystem directory; no Supabase, Realtime, Resend, or production credentials
+- Browser method: two in-app browser tabs; this is not yet the required isolated-context Playwright proof
+- Evidence is sanitized: no game ID, invitation URL, or seat token is recorded here.
+
+| Case | Result | Evidence |
+|---|---|---|
+| MP-001 two-player creation | PASS | UI created one game with two seats. |
+| MP-002 distinct invitations | PASS | Both invitations were non-empty and unequal; values were not retained in the record. |
+| MP-003/004 seat links | PARTIAL PASS | Separate tabs rendered Italy and Africa correctly; storage isolation awaits Playwright contexts. |
+| MP-005 seat identity | PASS | Each UI reported the expected `you` civilization; authenticated raw fetch returned 200. |
+| MP-006 malformed token | PASS | Raw fetch returned 401 and no state was retained. |
+| MP-007 cross-game isolation | PARTIAL PASS | A seat token from game A could not fetch game B (401); move/report/message permutations remain pending. |
+| MP-008 legal move | PASS | The on-clock Africa seat passed Ship Construction; a second snapshot persisted. |
+| MP-010 refresh persistence | PASS | Refresh retained the Italy seat and current authoritative turn. |
+| MP-011 reconnect/restart | PASS | After stopping and restarting the API with the same isolated store, authenticated fetch returned 200 and the browser restored the same seat/turn. |
+| MP-014 polling fallback | PASS | With Realtime variables absent, the waiting Italy tab observed Africa's move within a 3.2-second observation window. |
+| API-008 malformed JSON | PASS | Malformed JSON game creation returned controlled HTTP 400. |
+
+Observed baseline defects were preserved as evidence: the first-session UI rendered upstream-controlled cross-promotion, identity/leaderboard integration remained active, bearer credentials remained in visible URLs, and both tabs shared the same browser-local anonymous identity. These are not accepted as staging-safe behavior.
 
 ## Phase 0 environment
 
@@ -35,19 +69,19 @@ Result: **9/9 multiplayer tests passed** within the full **174/174** passing sui
 
 The suite reported one slow path: the hand-redaction scenario took approximately 519 ms. No console or network capture exists because the test runs directly against `GameServer`, not a browser or live HTTP server.
 
-## Phase 1 required cases — not yet run
+## Remaining Phase 1 required cases
 
 | Required case | Status |
 |---|---|
-| Two-player lobby and isolated browser contexts | NOT RUN |
+| Two-player lobby and isolated browser contexts | PARTIAL — tab smoke passed; isolated contexts pending |
 | Four-player game and four contexts | NOT RUN |
 | Six-player game and six contexts | NOT RUN |
-| Invite-to-seat correctness and civilization identity | NOT RUN |
-| Malformed token and cross-game token rejection over raw HTTP | NOT RUN |
+| Invite-to-seat correctness and civilization identity | PARTIAL — UI/raw smoke passed; isolated contexts pending |
+| Malformed token and cross-game token rejection over raw HTTP | PARTIAL — fetch paths passed; remaining routes pending |
 | Server rejection of off-clock and stale moves over raw HTTP | NOT RUN |
-| Refresh/reconnect from fresh contexts | NOT RUN |
+| Refresh/reconnect from fresh contexts | PARTIAL — refresh and API restart passed; fresh isolated context pending |
 | Comprehensive raw-response hidden-field absence | NOT RUN |
-| Polling with Realtime unavailable | NOT RUN |
+| Polling with Realtime unavailable | PARTIAL — one two-seat update observed; automated timing coverage pending |
 | Realtime refresh against configured Supabase | NOT RUN |
 | Near-simultaneous duplicate submission | NOT RUN |
 | Repeated-refresh corruption test | NOT RUN |
