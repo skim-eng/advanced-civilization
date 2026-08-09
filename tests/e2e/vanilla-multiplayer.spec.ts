@@ -1,6 +1,18 @@
-import { expect, test, type APIRequestContext, type BrowserContext, type Page } from '@playwright/test';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { expect, test, type APIRequestContext, type Browser, type BrowserContext, type Page } from '@playwright/test';
 
-const API_BASE = 'http://127.0.0.1:8787';
+const API_BASE = (process.env.PLAYWRIGHT_API_BASE ?? process.env.PLAYWRIGHT_BASE_URL ?? 'http://127.0.0.1:8787').replace(/\/$/, '');
+const APP_ORIGIN = new URL(process.env.PLAYWRIGHT_BASE_URL ?? 'http://127.0.0.1:5173').origin;
+const APP_HOST = new URL(APP_ORIGIN).hostname;
+const SUPABASE_HOST = process.env.PLAYWRIGHT_SUPABASE_HOST;
+const ACCESS_HEADERS = process.env.CF_ACCESS_CLIENT_ID && process.env.CF_ACCESS_CLIENT_SECRET
+  ? {
+      'CF-Access-Client-Id': process.env.CF_ACCESS_CLIENT_ID,
+      'CF-Access-Client-Secret': process.env.CF_ACCESS_CLIENT_SECRET,
+    }
+  : undefined;
+const HOSTED_GAME_IDS_FILE = resolve(process.env.HOSTED_GAME_IDS_FILE ?? 'test-results/hosted-game-ids.json');
 
 interface CreatedGame {
   gameId: string;
@@ -19,7 +31,14 @@ async function createGame(request: APIRequestContext, seed: number, setup: GameS
     data: { players: setup.players, seed, maxTurns: 60, boardPreset: setup.boardPreset },
   });
   if (response.status() !== 200) throw new Error(`Game creation failed with HTTP ${response.status()}`);
-  return response.json() as Promise<CreatedGame>;
+  const game = await response.json() as CreatedGame;
+  if (process.env.PLAYWRIGHT_BASE_URL) {
+    mkdirSync(dirname(HOSTED_GAME_IDS_FILE), { recursive: true });
+    let ids: string[] = [];
+    try { ids = JSON.parse(readFileSync(HOSTED_GAME_IDS_FILE, 'utf8')) as string[]; } catch { /* first hosted game */ }
+    if (!ids.includes(game.gameId)) writeFileSync(HOSTED_GAME_IDS_FILE, `${JSON.stringify([...ids, game.gameId], null, 2)}\n`, { mode: 0o600 });
+  }
+  return game;
 }
 
 function tokenFromInvite(invite: string): string {
@@ -34,12 +53,23 @@ async function exchangeInvite(request: APIRequestContext, gameId: string, invite
   });
 }
 
-async function monitorExternalTraffic(context: BrowserContext): Promise<string[]> {
+async function newSeatContext(browser: Browser): Promise<BrowserContext> {
+  const context = await browser.newContext();
+  if (ACCESS_HEADERS) {
+    await context.route(`${APP_ORIGIN}/**`, async (route) => {
+      await route.continue({ headers: { ...route.request().headers(), ...ACCESS_HEADERS } });
+    });
+  }
+  return context;
+}
+
+async function monitorExternalTraffic(context: BrowserContext, allowRealtime = true): Promise<string[]> {
   const unexpected: string[] = [];
   await context.route(/^https?:\/\//, async (route) => {
     const requestUrl = new URL(route.request().url());
     const host = requestUrl.hostname;
-    if (host === '127.0.0.1') await route.continue();
+    if (host === SUPABASE_HOST && !allowRealtime) await route.abort('blockedbyclient');
+    else if (host === '127.0.0.1' || host === APP_HOST || (allowRealtime && host === SUPABASE_HOST)) await route.fallback();
     else {
       unexpected.push(`${route.request().method()} ${requestUrl.origin}${requestUrl.pathname}`);
       await route.abort('blockedbyclient');
@@ -84,11 +114,11 @@ test('isolates two browser seats and observes polling after a legal move', async
   expect(Object.keys(game.invites).sort()).toEqual(['africa', 'italy']);
   expect(game.invites.africa).not.toBe(game.invites.italy);
 
-  const italyContext = await browser.newContext();
-  const africaContext = await browser.newContext();
+  const italyContext = await newSeatContext(browser);
+  const africaContext = await newSeatContext(browser);
   const [italyExternal, africaExternal] = await Promise.all([
-    monitorExternalTraffic(italyContext),
-    monitorExternalTraffic(africaContext),
+    monitorExternalTraffic(italyContext, !process.env.PLAYWRIGHT_BASE_URL),
+    monitorExternalTraffic(africaContext, !process.env.PLAYWRIGHT_BASE_URL),
   ]);
 
   try {
@@ -126,7 +156,7 @@ test('creates isolated 4- and 6-player browser sessions with distinct credential
     expect(new Set(Object.values(game.invites)).size).toBe(setup.players.length);
     expect(new Set(Object.values(game.invites).map(tokenFromInvite)).size).toBe(setup.players.length);
 
-    const contexts = await Promise.all(setup.players.map(() => browser.newContext()));
+    const contexts = await Promise.all(setup.players.map(() => newSeatContext(browser)));
     const traffic = await Promise.all(contexts.map(monitorExternalTraffic));
     try {
       const pages = await Promise.all(setup.players.map((seat, seatIndex) => openSeat(contexts[seatIndex]!, game.invites[seat]!, seat)));
@@ -189,8 +219,8 @@ test('exchanges a copied invitation into a refreshable HttpOnly session without 
   const credential = tokenFromInvite(invite);
   expect(new URL(invite).searchParams.has('token')).toBe(false);
 
-  const first = await browser.newContext();
-  const copied = await browser.newContext();
+  const first = await newSeatContext(browser);
+  const copied = await newSeatContext(browser);
   const browserDiagnostics: string[] = [];
   let observedReferrer: string | undefined;
   await first.route('https://referrer.invalid/**', async (route) => {
