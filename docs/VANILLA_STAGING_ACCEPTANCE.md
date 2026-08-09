@@ -140,8 +140,9 @@ There is no open `MUST_FIX_BEFORE_PHASE_2_DEPLOYMENT` issue.
 ## Integrity and stop boundary
 
 - No secret is committed or present in the deployment artifact.
-- No VASSAL module, extracted board artwork, OCR rules PDF, or proprietary
-  deploy-only artwork is committed or deployed.
+- No VASSAL module or extracted board artwork is committed or deployed. The
+  upstream-tracked OCR rules PDF remains preserved in repository history but is
+  excluded from the Pages deployment manifest.
 - Advanced Civilization rules, action legality, map/game data, graphics,
   scoring, deterministic RNG, and normal vanilla gameplay are unchanged.
 - Every Phase 2 deviation is recorded in `VANILLA_DEVIATIONS.md`.
