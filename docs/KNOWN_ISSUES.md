@@ -9,7 +9,7 @@
 | KI-003 | Open | Report-triage list and resolve routes lack administrator authentication and can expose full snapshots. |
 | KI-004 | Open | Fresh Supabase schema lacks the framework's `identities` and `ranked_report` columns, which is expected to break production persistence. |
 | KI-005 | Open | `GameServer.id()` uses `Math.random` for game IDs and bearer seat tokens. |
-| KI-006 | Open | Query-string bearer tokens have no explicit referrer or log-redaction controls. |
+| KI-006 | Partially mitigated | Query-string bearer tokens remain visible and lack explicit referrer controls. Phase 1 confirmed a Vite proxy-error leak and added tested query-credential log redaction; non-Vite logs, browser artifacts, referrers, and token-to-session exchange remain open. |
 | KI-007 | Open | Seven development dependency vulnerabilities remain intentionally unchanged in the baseline. Production-only audit reports zero. |
 
 ## Baseline quality and operability

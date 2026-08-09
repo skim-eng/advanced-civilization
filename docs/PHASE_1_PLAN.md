@@ -4,11 +4,19 @@ Branch: `test/vanilla-multiplayer`
 
 Phase 0 merge commit: `31fad73503d91f8d4b8b5210e537cbd24ad81975`
 
+## Progress
+
+- Hosted GitHub Actions CI: complete and passing.
+- Untouched local two-seat smoke test: complete and recorded.
+- Vite proxy credential-log redaction: implemented with unit and process-level regression checks.
+- Initial isolated-context Playwright suite: complete and passing locally and in GitHub Actions.
+- Comprehensive security characterization and remediation: in progress; Phase 1 is not complete.
+
 ## Scope and order
 
 1. Establish hosted CI for the locked install, 174-test baseline, typecheck, server build, and UI build.
 2. Verify the untouched two-seat local browser/API path with isolated temporary filesystem persistence before adding Playwright.
-3. Add Playwright in a separate focused commit, using a distinct browser context per seat and sanitized artifacts.
+3. Add Playwright in a separate focused commit, using a distinct browser context per seat and sanitized artifacts. **Complete for the initial two-seat authorization/concurrency suite.**
 4. Add characterization and negative tests before remediation, prioritized as follows:
    - seat-token generation, cross-game isolation, URL/referrer/log/artifact leakage;
    - exhaustive server-side hidden-information projection;

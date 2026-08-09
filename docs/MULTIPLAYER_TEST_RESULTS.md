@@ -2,7 +2,7 @@
 
 ## Current status
 
-Phase 1 began on `test/vanilla-multiplayer` after Phase 0 merged at `31fad73503d91f8d4b8b5210e537cbd24ad81975`. Hosted CI and a sanitized untouched-local smoke test have passed. No Playwright, isolated browser-context, Realtime, real-device, deployment, or load result is claimed yet.
+Phase 1 began on `test/vanilla-multiplayer` after Phase 0 merged at `31fad73503d91f8d4b8b5210e537cbd24ad81975`. Hosted CI, a sanitized untouched-local smoke test, Vite credential-log redaction, and the first isolated-context Playwright suite have passed. No Realtime, real-device, deployment, or load result is claimed yet.
 
 ## Phase 1 CI foundation
 
@@ -37,6 +37,23 @@ Phase 1 began on `test/vanilla-multiplayer` after Phase 0 merged at `31fad73503d
 | API-008 malformed JSON | PASS | Malformed JSON game creation returned controlled HTTP 400. |
 
 Observed baseline defects were preserved as evidence: the first-session UI rendered upstream-controlled cross-promotion, identity/leaderboard integration remained active, bearer credentials remained in visible URLs, and both tabs shared the same browser-local anonymous identity. These are not accepted as staging-safe behavior.
+
+## Phase 1 Playwright foundation
+
+- Tested commit: `dc6c87e6e99c9460c37fe8ebf79a85f56aac7f49`
+- GitHub Actions run: `31315830155`
+- Playwright: 1.62.1; Chromium-only initial project
+- Result: **3/3 browser/API tests passed** locally and on `ubuntu-latest`; the complete hosted job passed in 1 minute 10 seconds.
+- Hosted prerequisites also passed: clean install, **176/176** Vitest tests, typecheck, server build, and UI build.
+- Seat A and Seat B run in distinct browser contexts. External traffic is blocked by the test harness. Traces, screenshots, and video are disabled so token-bearing pages cannot enter artifacts. Each run uses and deletes a unique temporary filesystem store.
+
+| Automated case | Result | Boundary proved |
+|---|---|---|
+| Two isolated seats + legal move + polling | PASS | Italy and Africa render in separate contexts; exactly one on-clock seat acts; the waiting context observes the next turn. |
+| Missing/malformed/cross-game credentials | PASS | Missing and malformed credentials fail; a game-A credential receives 401 from game-B fetch, legal, move, message-read, message-write, and report routes. |
+| Simultaneous duplicate submission | PASS | Two same-seat submissions raced for one turn; exactly one returned 200 and the other was rejected. |
+
+This suite is an initial authorization/concurrency foundation, not comprehensive hidden-state approval. Full private-field projection fixtures, report-admin authorization, default-off external services, URL/referrer controls, schema/RLS, and malformed/oversized body coverage remain open.
 
 ## Phase 0 environment
 
@@ -73,19 +90,19 @@ The suite reported one slow path: the hand-redaction scenario took approximately
 
 | Required case | Status |
 |---|---|
-| Two-player lobby and isolated browser contexts | PARTIAL — tab smoke passed; isolated contexts pending |
+| Two-player lobby and isolated browser contexts | PASS — isolated Playwright contexts |
 | Four-player game and four contexts | NOT RUN |
 | Six-player game and six contexts | NOT RUN |
-| Invite-to-seat correctness and civilization identity | PARTIAL — UI/raw smoke passed; isolated contexts pending |
-| Malformed token and cross-game token rejection over raw HTTP | PARTIAL — fetch paths passed; remaining routes pending |
+| Invite-to-seat correctness and civilization identity | PASS for two players; 4/6-player matrices pending |
+| Malformed token and cross-game token rejection over raw HTTP | PASS for fetch/legal/move/messages/report; future protected routes must join the matrix |
 | Server rejection of off-clock and stale moves over raw HTTP | NOT RUN |
 | Refresh/reconnect from fresh contexts | PARTIAL — refresh and API restart passed; fresh isolated context pending |
 | Comprehensive raw-response hidden-field absence | NOT RUN |
-| Polling with Realtime unavailable | PARTIAL — one two-seat update observed; automated timing coverage pending |
+| Polling with Realtime unavailable | PASS for initial two-seat Playwright case; repeated timing/soak pending |
 | Realtime refresh against configured Supabase | NOT RUN |
-| Near-simultaneous duplicate submission | NOT RUN |
+| Near-simultaneous duplicate submission | PASS for one same-turn Playwright API race; broader stale/retry cases pending |
 | Repeated-refresh corruption test | NOT RUN |
-| Console/log/screenshot/source-map token and secret scan | NOT RUN |
+| Console/log/screenshot/source-map token and secret scan | PARTIAL — confirmed and fixed Vite proxy-log leak; Playwright artifacts disabled; broader scan pending |
 | Malformed JSON/action/report and database-failure paths | NOT RUN |
 | Manual laptop/iPhone/Android checks | NOT RUN |
 | Deployed staging suite and soak/load test | NOT RUN |
