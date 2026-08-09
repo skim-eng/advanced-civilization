@@ -30,12 +30,13 @@
 - **Decision:** Games-hub play counts, cross-promotion, identity, JWKS, and leaderboard integration must be disabled by default. They may be re-enabled only through an explicit configuration pointing to an owner-controlled service.
 - **Reason:** Vanilla multiplayer does not require John's identity or leaderboard, and the staging app must not silently transmit player data to infrastructure outside the owner's control.
 
-## ADR-0005 — Keep bearer invite links temporarily, harden their handling
+## ADR-0005 — Exchange invitation fragments for scoped browser sessions
 
 - **Date:** 2026-08-09
-- **Status:** Accepted for vanilla evaluation only; implementation pending
-- **Decision:** Do not redesign authentication before vanilla validation unless testing shows immediate critical exposure. Before staging, add `Referrer-Policy: no-referrer`, redact tokens from logs and artifacts, and test cross-game isolation. Design a later token-to-session exchange that removes the token from the visible URL.
-- **Reason:** This limits scope while acknowledging that a query-string bearer credential crosses browser-history and URL trust boundaries.
+- **Status:** Accepted and implemented in Phase 1
+- **Decision:** Generate game IDs and invitation credentials with 256 bits from Web Crypto. Carry an invitation credential in a URL fragment, exchange it in a POST body for an AES-GCM-protected HttpOnly `SameSite=Strict` cookie scoped to that game's API path, and immediately remove the fragment with `history.replaceState`. Require `Secure` on HTTPS; the loopback Node exception omits only `Secure`. Ignore legacy query credentials on all protected routes.
+- **Reason:** The fragment does not reach the HTTP server or referrer, and the reusable credential stops crossing logs/history on every request. A stateless encrypted session survives process restarts when the server secret is stable without creating a second session database.
+- **Limit:** Invitation reuse is intentionally supported so a copied link can open a fresh device. Revocation/rotation is not supported by framework 0.42 and remains a documented pre-production limitation unless the owner requires it.
 
 ## ADR-0006 — Retain the supported Cloudflare Pages + Supabase architecture
 

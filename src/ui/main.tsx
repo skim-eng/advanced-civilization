@@ -4,7 +4,7 @@ import { UpdateBanner } from 'digital-boardgame-framework/client';
 import App from './App.js';
 import { Lobby, OnlineGame } from './online.js';
 import DevApp from './dev/DevApp.js';
-import { fetchUnseenResponses, markResponseSeen, resolutionNote, submitStandaloneReport, type MyReport } from '../client/api.js';
+import { exchangeInvitation, fetchUnseenResponses, markResponseSeen, resolutionNote, submitStandaloneReport, type MyReport } from '../client/api.js';
 import { REPORT_CATEGORY } from '../report-meta.js';
 
 /** Catches render/runtime crashes so the app shows a recoverable message (with a
@@ -59,7 +59,7 @@ function ReportResponseModal({ r, onDismiss }: { r: MyReport; onDismiss: () => v
 function Root() {
   const params = new URLSearchParams(location.search);
   const game = params.get('game');
-  const token = params.get('token');
+  const invite = new URLSearchParams(location.hash.replace(/^#/, '')).get('invite');
 
   // Dev authoring tools (territory polygons, categories, adjacency). Local only.
   if (params.has('dev')) return <DevApp />;
@@ -72,7 +72,7 @@ function Root() {
 
   const [mode, setMode] = useState<'menu' | 'hotseat' | 'online'>('menu');
   let body: React.ReactNode;
-  if (game && token) body = <OnlineGame gameId={game} token={token} />; // joining a seat via invite
+  if (game) body = <InviteRoute gameId={game} invite={invite} />;
   else if (mode === 'hotseat') body = <App />;
   else if (mode === 'online') body = <Lobby />;
   else body = (
@@ -90,6 +90,26 @@ function Root() {
     </div>
   );
   return <>{modal}{body}</>;
+}
+
+function InviteRoute({ gameId, invite }: { gameId: string; invite: string | null }) {
+  const [ready, setReady] = useState(!invite);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    if (!invite) return;
+    let live = true;
+    void exchangeInvitation('', gameId, invite)
+      .then(() => {
+        if (!live) return;
+        history.replaceState(null, '', `${location.pathname}?game=${encodeURIComponent(gameId)}`);
+        setReady(true);
+      })
+      .catch(() => { if (live) setError('This invitation is invalid or no longer available.'); });
+    return () => { live = false; };
+  }, [gameId, invite]);
+  if (error) return <div style={{ color: '#eee', padding: 24 }}>This invitation is invalid or no longer available.</div>;
+  if (!ready) return <div style={{ color: '#eee', padding: 24 }}>Opening invitation…</div>;
+  return <OnlineGame gameId={gameId} />;
 }
 
 createRoot(document.getElementById('root')!).render(

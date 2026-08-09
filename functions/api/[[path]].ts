@@ -10,6 +10,8 @@ import { adapter, codec, type Action, type GameState } from '../../src/engine/in
 import { HeuristicAI } from '../../src/ai/heuristic.js';
 import { handleApi } from '../../src/server/handlers.js';
 import { APP_ID } from '../../src/report-meta.js';
+import { secureId } from '../../src/server/secure-id.js';
+import { SeatSessionCodec } from '../../src/server/session.js';
 
 interface Env {
   SUPABASE_URL: string;
@@ -23,6 +25,8 @@ interface Env {
   ENABLE_UPSTREAM_SERVICES?: string;
   /** Owner-controlled identity/counter/rating service base URL. */
   UPSTREAM_HUB_URL?: string;
+  /** At least 32 random characters; encrypts stateless HttpOnly seat sessions. */
+  SESSION_SECRET: string;
 }
 
 // Optional identity verification: no fetch is reachable under default config.
@@ -67,6 +71,9 @@ export const onRequest: PagesFunction<Env> = async (ctx) => {
   }
 
   const store = new SupabaseStore(supabase);
+  let sessions: SeatSessionCodec;
+  try { sessions = new SeatSessionCodec(env.SESSION_SECRET ?? ''); }
+  catch { return new Response(JSON.stringify({ error: 'server configuration error' }), { status: 500, headers: { 'content-type': 'application/json' } }); }
   const server = new GameServer<GameState, Action, string>({
     snapshotHistory: 20,   // cap per-game snapshot history (framework >=0.32)
     adapter,
@@ -76,7 +83,8 @@ export const onRequest: PagesFunction<Env> = async (ctx) => {
 
     broadcaster: new SupabaseBroadcaster({ supabaseUrl: env.SUPABASE_URL, serviceKey: env.SUPABASE_SERVICE_KEY }),
     notifier,
-    gameUrl: (gameId, token) => `${site}/?game=${encodeURIComponent(gameId)}&token=${encodeURIComponent(token)}`,
+    idGen: secureId,
+    gameUrl: (gameId, token) => `${site}/?game=${encodeURIComponent(gameId)}#invite=${encodeURIComponent(token)}`,
     // Stamp every in-game report with this app's id so triage can isolate our
     // reports on the shared backend.
     appId: APP_ID,
@@ -94,9 +102,14 @@ export const onRequest: PagesFunction<Env> = async (ctx) => {
     try { body = await request.json(); } catch { body = {}; }
   }
 
-  const result = await handleApi(server, request.method, url.pathname, url.searchParams, body, (row) => store.putReport({ ...row, appId: APP_ID }));
+  const result = await handleApi(server, request.method, url.pathname, url.searchParams, body, (row) => store.putReport({ ...row, appId: APP_ID }), {
+    sessions,
+    cookie: request.headers.get('cookie') ?? undefined,
+    secureCookies: true,
+    authorization: request.headers.get('authorization') ?? undefined,
+  });
   return new Response(JSON.stringify(result.body), {
     status: result.status,
-    headers: { 'content-type': 'application/json', 'access-control-allow-origin': '*' },
+    headers: { 'content-type': 'application/json', 'referrer-policy': 'no-referrer', ...(result.headers ?? {}) },
   });
 };

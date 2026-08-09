@@ -11,6 +11,7 @@ import { GameServer, NoopBroadcaster, NoopNotifier, verifyIdentityToken, type Ga
 import { FsStore } from 'digital-boardgame-framework/server/node';
 import { adapter, codec, createGame, type Action, type GameState, type NewGameOptions } from '../engine/index.js';
 import { APP_ID } from '../report-meta.js';
+import { secureId } from './secure-id.js';
 
 const env = (k: string) => (typeof process !== 'undefined' ? process.env[k] : undefined);
 
@@ -87,7 +88,8 @@ export async function buildGameServer(baseUrl = env('PUBLIC_BASE_URL') ?? 'http:
     store,
     broadcaster,
     notifier,
-    gameUrl: (gameId, token) => `${baseUrl}/?game=${encodeURIComponent(gameId)}&token=${encodeURIComponent(token)}`,
+    idGen: secureId,
+    gameUrl: (gameId, token) => `${baseUrl}/?game=${encodeURIComponent(gameId)}#invite=${encodeURIComponent(token)}`,
     // Stamp every in-game report with this app's id so triage can isolate our
     // reports on the shared backend.
     appId: APP_ID,

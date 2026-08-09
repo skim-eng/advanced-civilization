@@ -6,6 +6,8 @@
 import type { GameServer, ReportSubmission, BugReportRow, ReportFilter } from 'digital-boardgame-framework/server';
 import { createGame, type Action, type GameState } from '../engine/index.js';
 import { REPORT_CATEGORY } from '../report-meta.js';
+import { isSecureId } from './secure-id.js';
+import type { SeatSessionCodec } from './session.js';
 // NOTE: import createGame from the engine (node-free), NOT newGameState from
 // game-server.ts — that module top-level-imports FsStore (node:fs), which would
 // break the Cloudflare Workers build of this shared router.
@@ -14,6 +16,14 @@ const newGameState = createGame;
 export interface ApiResult {
   status: number;
   body: unknown;
+  headers?: Record<string, string>;
+}
+
+export interface ApiRequestContext {
+  sessions?: SeatSessionCodec;
+  cookie?: string;
+  secureCookies?: boolean;
+  authorization?: string;
 }
 
 type Server = GameServer<GameState, Action, string>;
@@ -28,9 +38,9 @@ function errToStatus(message: string): number {
   return 400;
 }
 
-/** Route one request. `query` carries the per-seat `?token=`. `putReport` (when
- *  provided) backs the standalone `POST /api/report` used by hotseat play, which
- *  has no game/token to attach a report to. */
+/** Route one request. `putReport` (when provided) backs the standalone
+ * `POST /api/report` used by hotseat play. Protected game routes authenticate
+ * exclusively through the request context's scoped session cookie. */
 export async function handleApi(
   server: Server,
   method: string,
@@ -38,6 +48,7 @@ export async function handleApi(
   query: URLSearchParams,
   body: unknown,
   putReport?: (row: BugReportRow) => Promise<void>,
+  context: ApiRequestContext = {},
 ): Promise<ApiResult> {
   const segs = pathname.replace(/\/+$/, '').split('/').filter(Boolean);
   if (segs[0] !== 'api') return { status: 404, body: { error: 'not found' } };
@@ -104,8 +115,6 @@ export async function handleApi(
       return { status: 500, body: { error: (e as Error).message } };
     }
   }
-  const token = query.get('token') ?? '';
-
   try {
     // ---- games ----
     if (segs[1] === 'games') {
@@ -128,13 +137,33 @@ export async function handleApi(
 
       const gameId = segs[2];
       if (!gameId) return { status: 404, body: { error: 'not found' } };
+      if (!isSecureId(gameId)) return { status: 404, body: { error: 'not found' } };
+
+      // POST /api/games/:id/session { inviteToken }. The credential arrives in a
+      // request body after the browser reads it from the URL fragment, then is
+      // replaced by an encrypted, scoped HttpOnly cookie.
+      if (segs[3] === 'session' && segs.length === 4 && method === 'POST') {
+        if (!context.sessions) return { status: 503, body: { error: 'sessions are not configured' } };
+        const inviteToken = (body as { inviteToken?: unknown } | undefined)?.inviteToken;
+        if (!isSecureId(inviteToken)) return { status: 401, body: { error: 'invalid invitation' } };
+        const view = await server.fetch(gameId, inviteToken);
+        const cookie = await context.sessions.setCookie(gameId, inviteToken, context.secureCookies ?? false);
+        return { status: 200, body: { ok: true, you: view.you }, headers: { 'set-cookie': cookie } };
+      }
+
+      // Protected game routes accept the scoped browser session only. A legacy
+      // `?token=` value is deliberately ignored.
+      const token = context.sessions
+        ? await context.sessions.tokenFromCookie(context.cookie, gameId, context.secureCookies ?? false)
+        : undefined;
+      if (!token) return { status: 401, body: { error: 'authentication required' } };
 
       // GET /api/games/:id
       if (segs.length === 3 && method === 'GET') return { status: 200, body: await server.fetch(gameId, token) };
       // GET /api/games/:id/legal
       if (segs[3] === 'legal' && method === 'GET') return { status: 200, body: await server.legalActions(gameId, token) };
-      // POST /api/games/:id/claim  { identityToken } — attach a hub identity to
-      // this seat (ranked attribution). Token-gated by the per-seat ?token=.
+      // POST /api/games/:id/claim { identityToken } — optional owner-controlled
+      // identity attribution, gated by the same seat session as every game route.
       if (segs[3] === 'claim' && method === 'POST') {
         const idTok = (body as { identityToken?: unknown })?.identityToken;
         if (typeof idTok !== 'string' || !idTok) return { status: 422, body: { error: 'identityToken required' } };

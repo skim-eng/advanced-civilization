@@ -6,7 +6,7 @@ import { adapter } from '../engine/index.js';
 import type { Action, GameState, PlayerId } from '../engine/index.js';
 import { civilizations, civById } from '../data/index.js';
 import { availableNations, unavailableReason } from '../engine/boards.js';
-import { createCivClient, createNetworkGame, fetchMyReports, realtimeSubscribe, resolutionNote, tokenFromInvite, type MyReport } from '../client/api.js';
+import { createCivClient, createNetworkGame, fetchMyReports, realtimeSubscribe, resolutionNote, type MyReport } from '../client/api.js';
 import { REPORT_CATEGORY } from '../report-meta.js';
 import { ActionList, Board, BoardPicker, CalamityModal, CombatModal, InfoView, MovementControls, ReportModal, StatusPanel, effectiveBoardPreset, legalAreas, nationFocusArea, prettyPhase, scrollBoardTo, useMovementPlanner, type View } from './App.js';
 
@@ -44,8 +44,7 @@ export function Lobby() {
       const seed = Math.floor(Math.random() * 0xffff);
       const ai = Object.fromEntries(picked.slice(1).map((n) => [n, 'standard']));
       const g = await createNetworkGame(API, { players: picked, seed, maxTurns: 60, ai, boardPreset: preset.id });
-      const myUrl = g.invites[picked[0]!] ?? '';
-      location.search = `?game=${encodeURIComponent(g.gameId)}&token=${encodeURIComponent(tokenFromInvite(myUrl))}`;
+      location.href = g.invites[picked[0]!] ?? '';
     } catch (e) { setError((e as Error).message); }
   }
 
@@ -83,7 +82,7 @@ export function Lobby() {
                 <td style={{ fontWeight: 800, color: civById.get(seat)?.color, padding: '4px 8px' }}>{civById.get(seat)?.name ?? seat}</td>
                 <td><input readOnly value={url} style={{ width: '100%' }} onFocus={(e) => e.currentTarget.select()} /></td>
                 <td><button className="civ-btn" onClick={() => navigator.clipboard?.writeText(url)}>Copy</button></td>
-                <td><button className="civ-btn" onClick={() => { location.search = `?game=${encodeURIComponent(created.gameId)}&token=${encodeURIComponent(tokenFromInvite(url))}`; }}>Open as {civById.get(seat)?.name ?? seat}</button></td>
+                <td><button className="civ-btn" onClick={() => { location.href = url; }}>Open as {civById.get(seat)?.name ?? seat}</button></td>
               </tr>
             ))}
           </tbody></table>
@@ -95,10 +94,10 @@ export function Lobby() {
 
 // ---- Online game (driven by useGame) --------------------------------------
 
-export function OnlineGame({ gameId, token }: { gameId: string; token: string }) {
+export function OnlineGame({ gameId }: { gameId: string }) {
   const client: GameClientApi<GameState, Action> = useMemo(
-    () => createCivClient({ baseUrl: API, gameId, token }),
-    [gameId, token],
+    () => createCivClient({ baseUrl: API, gameId }),
+    [gameId],
   );
   const subscribe = useMemo(() => realtimeSubscribe(gameId, import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_ANON_KEY), [gameId]);
   const game = useGame<GameState, Action>(client, { pollMs: 2500, ...(subscribe ? { subscribe } : {}) });

@@ -9,18 +9,20 @@ import { adapter, codec, createGame } from '../engine/index.js';
 import type { Action, GameState, PlayerId } from '../engine/index.js';
 import { HeuristicAI } from '../ai/heuristic.js';
 import { handleApi } from './handlers.js';
+import { secureId } from './secure-id.js';
 
 function makeServer() {
   const store = new FsStore(mkdtempSync(join(tmpdir(), 'civ-mp-')));
   return new GameServer<GameState, Action, string>({
     adapter, codec, store, broadcaster: new NoopBroadcaster(), notifier: new NoopNotifier(),
-    gameUrl: (g, t) => `/play?game=${g}&token=${t}`,
+    idGen: secureId,
+    gameUrl: (g, t) => `/play?game=${g}#invite=${t}`,
   });
 }
-const tokenOf = (inviteUrl: string) => new URL(inviteUrl, 'http://x').searchParams.get('token')!;
+const tokenOf = (inviteUrl: string) => new URLSearchParams(new URL(inviteUrl, 'http://x').hash.slice(1)).get('invite')!;
 
-/** Create a 2-player game and return the server, id, and parsed per-seat tokens
- *  (the `invites` map holds shareable URLs; the token is the ?token= param). */
+/** Create a 2-player game and return the server, id, and parsed per-seat invite
+ * credentials. Production HTTP exchanges these fragment values for sessions. */
 async function newGame(seed = 5) {
   const s = makeServer();
   const { gameId, invites } = await s.createGame({ initialState: createGame({ players: ['egypt', 'babylon'], seed }), players: ['egypt', 'babylon'] });
@@ -112,7 +114,7 @@ describe('async multiplayer (GameServer + filesystem store)', () => {
     const store = new FsStore(mkdtempSync(join(tmpdir(), 'civ-app-')));
     const s = new GameServer<GameState, Action, string>({
       adapter, codec, store, broadcaster: new NoopBroadcaster(), notifier: new NoopNotifier(),
-      gameUrl: (g, t) => `/play?game=${g}&token=${t}`, appId: 'advanced-civilization',
+      idGen: secureId, gameUrl: (g, t) => `/play?game=${g}#invite=${t}`, appId: 'advanced-civilization',
     });
     const { gameId, invites } = await s.createGame({ initialState: createGame({ players: ['egypt', 'babylon'], seed: 5 }), players: ['egypt', 'babylon'] });
     await s.report(gameId, tokenOf(invites.egypt!), { message: 'ours', severity: 'bug' });

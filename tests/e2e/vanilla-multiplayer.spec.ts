@@ -16,9 +16,15 @@ async function createGame(request: APIRequestContext, seed: number): Promise<Cre
 }
 
 function tokenFromInvite(invite: string): string {
-  const token = new URL(invite).searchParams.get('token');
+  const token = new URLSearchParams(new URL(invite).hash.replace(/^#/, '')).get('invite');
   if (!token) throw new Error('Game invitation did not contain a seat credential');
   return token;
+}
+
+async function exchangeInvite(request: APIRequestContext, gameId: string, inviteToken: string) {
+  return request.post(`${API_BASE}/api/games/${encodeURIComponent(gameId)}/session`, {
+    data: { inviteToken },
+  });
 }
 
 async function monitorExternalTraffic(context: BrowserContext): Promise<string[]> {
@@ -47,13 +53,14 @@ async function openSeat(context: BrowserContext, invite: string, expectedSeat: s
   if (await continueButton.isVisible({ timeout: 750 }).catch(() => false)) await continueButton.click();
 
   await expect(page.getByText(new RegExp(`you are ${expectedSeat}`, 'i'))).toBeVisible();
-  await page.evaluate(() => history.replaceState(null, '', location.pathname));
+  await expect.poll(() => page.url()).not.toContain('invite=');
+  expect(new URL(page.url()).searchParams.get('game')).toBeTruthy();
   return page;
 }
 
-async function authenticatedFetch(request: APIRequestContext, gameId: string, token: string) {
+async function authenticatedFetch(request: APIRequestContext, gameId: string) {
   try {
-    return await request.get(`${API_BASE}/api/games/${encodeURIComponent(gameId)}`, { params: { token } });
+    return await request.get(`${API_BASE}/api/games/${encodeURIComponent(gameId)}`);
   } catch {
     throw new Error('Authenticated game fetch failed before receiving an HTTP response');
   }
@@ -99,38 +106,75 @@ test('rejects missing, malformed, and cross-game seat credentials on protected r
   const [gameA, gameB] = await Promise.all([createGame(request, 201), createGame(request, 202)]);
   const italyA = tokenFromInvite(gameA.invites.italy!);
 
-  const valid = await authenticatedFetch(request, gameA.gameId, italyA);
+  const missing = await authenticatedFetch(request, gameA.gameId);
+  expect(missing.status()).toBe(401);
+  const legacyQuery = await request.get(`${API_BASE}/api/games/${encodeURIComponent(gameA.gameId)}`, { params: { token: italyA } });
+  expect(legacyQuery.status()).toBe(401);
+  expect((await exchangeInvite(request, gameA.gameId, 'malformed')).status()).toBe(401);
+  expect((await exchangeInvite(request, gameB.gameId, italyA)).status()).toBe(401);
+
+  expect((await exchangeInvite(request, gameA.gameId, italyA)).status()).toBe(200);
+  const valid = await authenticatedFetch(request, gameA.gameId);
   expect(valid.status()).toBe(200);
   expect((await valid.json() as { you?: string }).you).toBe('italy');
 
-  const missing = await authenticatedFetch(request, gameA.gameId, '');
-  expect(missing.status()).toBe(401);
-  const malformed = await authenticatedFetch(request, gameA.gameId, 'malformed');
-  expect(malformed.status()).toBe(401);
-
   const crossGameRequests = await Promise.all([
-    authenticatedFetch(request, gameB.gameId, italyA),
-    request.get(`${API_BASE}/api/games/${encodeURIComponent(gameB.gameId)}/legal`, { params: { token: italyA } }),
-    request.post(`${API_BASE}/api/games/${encodeURIComponent(gameB.gameId)}/move`, { params: { token: italyA }, data: { action: { type: 'pass' } } }),
-    request.get(`${API_BASE}/api/games/${encodeURIComponent(gameB.gameId)}/messages`, { params: { token: italyA } }),
-    request.post(`${API_BASE}/api/games/${encodeURIComponent(gameB.gameId)}/messages`, { params: { token: italyA }, data: { body: 'isolation check' } }),
-    request.post(`${API_BASE}/api/games/${encodeURIComponent(gameB.gameId)}/report`, { params: { token: italyA }, data: { message: 'isolation check', severity: 'bug' } }),
+    authenticatedFetch(request, gameB.gameId),
+    request.get(`${API_BASE}/api/games/${encodeURIComponent(gameB.gameId)}/legal`),
+    request.post(`${API_BASE}/api/games/${encodeURIComponent(gameB.gameId)}/move`, { data: { action: { type: 'pass' } } }),
+    request.get(`${API_BASE}/api/games/${encodeURIComponent(gameB.gameId)}/messages`),
+    request.post(`${API_BASE}/api/games/${encodeURIComponent(gameB.gameId)}/messages`, { data: { body: 'isolation check' } }),
+    request.post(`${API_BASE}/api/games/${encodeURIComponent(gameB.gameId)}/report`, { data: { message: 'isolation check', severity: 'bug' } }),
   ]);
   expect(crossGameRequests.map((response) => response.status())).toEqual([401, 401, 401, 401, 401, 401]);
+});
+
+test('exchanges a copied invitation into a refreshable HttpOnly session without URL, history, or referrer leakage', async ({ browser, request }) => {
+  const game = await createGame(request, 251);
+  const invite = game.invites.italy!;
+  const credential = tokenFromInvite(invite);
+  expect(new URL(invite).searchParams.has('token')).toBe(false);
+
+  const first = await browser.newContext();
+  const copied = await browser.newContext();
+  let observedReferrer: string | undefined;
+  await first.route('https://referrer.invalid/**', async (route) => {
+    observedReferrer = route.request().headers().referer;
+    await route.fulfill({ status: 204, body: '' });
+  });
+  try {
+    const firstPage = await openSeat(first, invite, 'Italy');
+    expect(await firstPage.evaluate(() => document.cookie)).not.toContain('chronicle_seat');
+    expect(firstPage.url()).not.toContain(credential);
+    await firstPage.reload();
+    await expect(firstPage.getByText(/you are Italy/i)).toBeVisible();
+    await firstPage.evaluate(() => fetch('https://referrer.invalid/probe'));
+    expect(observedReferrer).toBeUndefined();
+
+    const copiedPage = await openSeat(copied, invite, 'Italy');
+    expect(copiedPage.url()).not.toContain(credential);
+    await copiedPage.goBack({ waitUntil: 'domcontentloaded' });
+    expect(copiedPage.url()).not.toContain(credential);
+    expect(copiedPage.url()).not.toContain('invite=');
+  } finally {
+    await Promise.all([first.close(), copied.close()]);
+  }
 });
 
 test('accepts exactly one of two simultaneous submissions for the same turn', async ({ request }) => {
   const game = await createGame(request, 301);
   const italy = tokenFromInvite(game.invites.italy!);
   const africa = tokenFromInvite(game.invites.africa!);
-  const italyView = await authenticatedFetch(request, game.gameId, italy);
+  expect((await exchangeInvite(request, game.gameId, italy)).status()).toBe(200);
+  const italyView = await authenticatedFetch(request, game.gameId);
   const italyOnClock = (await italyView.json() as { yourTurn: boolean }).yourTurn;
   const actorToken = italyOnClock ? italy : africa;
+  if (!italyOnClock) expect((await exchangeInvite(request, game.gameId, actorToken)).status()).toBe(200);
   const moveUrl = `${API_BASE}/api/games/${encodeURIComponent(game.gameId)}/move`;
 
   const responses = await Promise.all([
-    request.post(moveUrl, { params: { token: actorToken }, data: { action: { type: 'pass' } } }),
-    request.post(moveUrl, { params: { token: actorToken }, data: { action: { type: 'pass' } } }),
+    request.post(moveUrl, { data: { action: { type: 'pass' } } }),
+    request.post(moveUrl, { data: { action: { type: 'pass' } } }),
   ]);
   const statuses = responses.map((response) => response.status());
   expect(statuses.filter((status) => status === 200)).toHaveLength(1);

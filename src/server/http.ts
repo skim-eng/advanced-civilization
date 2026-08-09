@@ -5,15 +5,23 @@ import { createServer } from 'node:http';
 import { buildGameServer, makeStore } from './game-server.js';
 import { handleApi } from './handlers.js';
 import { APP_ID } from '../report-meta.js';
+import { makeLocalSessionCodec } from './session-node.js';
 
 const PORT = Number(process.env.PORT ?? 8787);
 
 const server = await buildGameServer();
 const store = await makeStore(); // backs standalone hotseat reports
+const sessions = await makeLocalSessionCodec();
 
-function send(res: import('node:http').ServerResponse, code: number, body: unknown) {
+function send(res: import('node:http').ServerResponse, code: number, body: unknown, extraHeaders: Record<string, string> = {}) {
   const data = JSON.stringify(body);
-  res.writeHead(code, { 'content-type': 'application/json', 'access-control-allow-origin': '*', 'access-control-allow-headers': 'content-type', 'access-control-allow-methods': 'GET,POST,OPTIONS' });
+  res.writeHead(code, {
+    'content-type': 'application/json',
+    'referrer-policy': 'no-referrer',
+    'x-content-type-options': 'nosniff',
+    'cache-control': 'no-store',
+    ...extraHeaders,
+  });
   res.end(data);
 }
 async function readJson(req: import('node:http').IncomingMessage): Promise<unknown> {
@@ -28,8 +36,13 @@ const http = createServer(async (req, res) => {
     const url = new URL(req.url ?? '/', `http://${req.headers.host}`);
     const body = req.method === 'POST' ? await readJson(req) : undefined;
     // Same router the Cloudflare Pages Function uses (dev/prod parity).
-    const result = await handleApi(server, req.method ?? 'GET', url.pathname, url.searchParams, body, (row) => store.putReport({ ...row, appId: APP_ID }));
-    return send(res, result.status, result.body);
+    const result = await handleApi(server, req.method ?? 'GET', url.pathname, url.searchParams, body, (row) => store.putReport({ ...row, appId: APP_ID }), {
+      sessions,
+      cookie: req.headers.cookie,
+      secureCookies: false,
+      authorization: req.headers.authorization,
+    });
+    return send(res, result.status, result.body, result.headers);
   } catch (e) {
     send(res, 400, { error: (e as Error).message });
   }
