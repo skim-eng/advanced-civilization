@@ -10,4 +10,4 @@ Branch: `chore/vanilla-baseline`
 6. Re-run verification, review the diff against the exact upstream SHA, make focused commits, publish the archival refs and phase branch to the owner's fork, and open a Phase 0 pull request.
 7. Stop after `docs/VANILLA_BASELINE_REPORT.md`; do not begin Phase 1 without explicit approval.
 
-Publishing steps in item 6 require an authenticated GitHub account and an owner-controlled fork. Their current status is recorded in the baseline report.
+Item 6 is complete in the owner-controlled `skim-eng/advanced-civilization` fork. The archival branch and tag are protected, and Phase 0 is under review in pull request 1. The conditional acceptance and remaining staging blockers are recorded in the baseline report.

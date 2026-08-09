@@ -2,14 +2,14 @@
 
 ## Result: CONDITIONAL PASS
 
-The exact upstream code installs, passes all 174 automated tests, typechecks, and completes both production builds. Its history, local archival branch, and annotated baseline tag are preserved. The architecture, IP boundary, data flow, environment variables, outbound services, and security boundaries are documented.
+The exact upstream code installs, passes all 174 automated tests, typechecks, and completes both production builds. Its history, published archival branch, and annotated baseline tag are preserved. The architecture, IP boundary, data flow, environment variables, outbound services, and security boundaries are documented.
 
-Phase 0 is **conditional**, not complete, because:
+Phase 0 preservation and publishing are complete. Acceptance remains **conditional** because:
 
-1. an owner-controlled GitHub fork does not currently exist publicly and no authenticated GitHub session is available, so `origin`, remote branch/tag protection, pushes, and the pull request remain blocked;
-2. critical staging findings remain unresolved by design in this audit phase, including upstream hub traffic, unauthenticated report triage, incompatible Supabase schema, and non-cryptographic bearer-token generation.
+1. critical staging findings remain unresolved by design in this audit phase, including upstream hub traffic, unauthenticated report triage, incompatible Supabase schema, and non-cryptographic bearer-token generation;
+2. manual browser, deployment, live persistence/RLS, load, backup, and rollback validation remain assigned to later explicitly approved phases.
 
-Do not begin Phase 1 until the GitHub preservation/publishing items are completed and the project owner accepts this report.
+Do not begin Phase 1 until the project owner accepts this report and explicitly approves that phase.
 
 ## Provenance and preservation
 
@@ -17,18 +17,20 @@ Do not begin Phase 1 until the GitHub preservation/publishing items are complete
 |---|---|
 | Upstream repository | `https://github.com/johnchampaign/advanced-civilization.git` |
 | Upstream GitHub identity | Public repository, `fork: false`, owned by `johnchampaign` |
+| Owner fork / `origin` | `https://github.com/skim-eng/advanced-civilization.git` |
 | Upstream default branch | `main` |
 | Exact baseline SHA | `4b3f981cdf4b3cefbb8f523b0d78c9eb320e1422` |
 | Commit summary | `Movement/marker/tooltip fixes from the report queue` |
 | Commit timestamp | `2026-07-22T05:22:42-04:00` |
-| Local phase branch | `chore/vanilla-baseline` |
-| Local archival branch | `archive/john-vanilla` at the exact baseline SHA |
-| Annotated tag | `john-vanilla-2026-08-09-4b3f981` targeting the exact baseline SHA |
+| Published phase branch | `chore/vanilla-baseline` |
+| Published archival branch | `archive/john-vanilla` at the exact baseline SHA; locked with admin enforcement and force-push/deletion disabled |
+| Published annotated tag | `john-vanilla-2026-08-09-4b3f981` targeting the exact baseline SHA; protected by active tag ruleset 20605324 against deletion and rewrite |
+| Phase 0 pull request | `https://github.com/skim-eng/advanced-civilization/pull/1` |
 | License | MIT; `Copyright (c) 2026 John Champaign` retained unchanged |
 
 The workspace began as an empty Git repository with no commits or remotes. John Champaign's repository was added as `upstream`, all advertised branches and tags were fetched, and local branches were created directly from `upstream/main`. No upstream commit was rewritten or squashed.
 
-GitHub's public API reported zero forks at audit time. Both the in-app browser and connected Chrome session were signed out, and GitHub CLI is not installed. Therefore an owner fork could not be created or confirmed. `origin` is deliberately absent rather than falsely pointing it at John Champaign's repository.
+GitHub's public API reported zero forks at initial audit time. After the owner authenticated, the `skim-eng/advanced-civilization` fork was created and configured as `origin`. The archival branch, annotated tag, and Phase 0 branch were pushed without changing upstream history. Pull request 1 targets the fork's `main` branch; no pull request was opened against John Champaign's repository.
 
 ### Exact Git commands used
 
@@ -41,9 +43,12 @@ git branch archive/john-vanilla upstream/main
 git tag -a john-vanilla-2026-08-09-4b3f981 4b3f981cdf4b3cefbb8f523b0d78c9eb320e1422 \
   -m "Immutable John Champaign vanilla baseline at 4b3f981cdf4b3cefbb8f523b0d78c9eb320e1422"
 git switch -c chore/vanilla-baseline
+git remote add origin https://github.com/skim-eng/advanced-civilization.git
+git push --atomic origin chore/vanilla-baseline archive/john-vanilla \
+  refs/tags/john-vanilla-2026-08-09-4b3f981
 ```
 
-The tag is annotated and locally points to the correct commit. True immutability and archival-branch protection require publishing to the owner's fork and applying GitHub rules; local Git refs alone are movable.
+Remote verification resolves the archival branch to `4b3f981cdf4b3cefbb8f523b0d78c9eb320e1422`; dereferencing the annotated tag resolves to the same commit. GitHub branch protection locks the archive branch, enforces protection for administrators, and disables force pushes and deletion. Active repository tag ruleset 20605324 blocks deletion and non-fast-forward updates for the exact baseline tag.
 
 ## Baseline environment
 
@@ -175,13 +180,14 @@ Upstream ignore rules did not cover `.env.local` and several common secret artif
 - Governance, architecture, security, test, deployment, roadmap, IP, decision, known-issue, and baseline documentation.
 - No gameplay, engine, UI, server behavior, data, dependency, or rule changes.
 
-## Required owner action to unblock publishing
+## GitHub publication record
 
-1. Sign in to GitHub in either Chrome or the Codex in-app browser.
-2. Tell Codex that the GitHub session is ready.
-
-Codex can then create/confirm the fork, configure it as `origin`, push `main`, the archive branch, tag, and Phase 0 branch, configure protection if the account permits it, and open the Phase 0 pull request. No credential needs to be pasted into chat.
+- Owner fork: `skim-eng/advanced-civilization`
+- Pull request: `https://github.com/skim-eng/advanced-civilization/pull/1`
+- Archive branch: `archive/john-vanilla`, locked with administrator enforcement and force-push/deletion disabled
+- Baseline tag: `john-vanilla-2026-08-09-4b3f981`, covered by active ruleset 20605324 against deletion and non-fast-forward updates
+- Remote SHA verification: both archival refs dereference to `4b3f981cdf4b3cefbb8f523b0d78c9eb320e1422`
 
 ## Recommendation
 
-Accept the upstream code as a reproducible **audit baseline**, but do not approve local multiplayer validation or any deployment as secure merely from this result. First complete GitHub preservation/publishing. Phase 1 should then repair and test the critical authorization and privacy boundaries in focused commits before Phase 2 staging.
+Accept the upstream code as a reproducible, published **audit baseline**, but do not approve local multiplayer validation or any deployment as secure merely from this result. After explicit approval, Phase 1 should repair and test the critical authorization and privacy boundaries in focused commits before Phase 2 staging.

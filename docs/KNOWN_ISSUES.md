@@ -4,7 +4,7 @@
 
 | ID | Status | Issue |
 |---|---|---|
-| KI-001 | Open | No owner-controlled GitHub fork currently exists publicly, and neither available browser is signed in. `origin`, remote archive protection, pushes, and the Phase 0 PR cannot be completed until GitHub authentication is available. |
+| KI-001 | Resolved | The `skim-eng/advanced-civilization` fork is configured as `origin`; the locked archive branch, protected annotated tag, Phase 0 branch, and pull request 1 are published. |
 | KI-002 | Open | Upstream hub integrations send traffic to `games-hub-5vo.pages.dev` by default. They must be disabled or redirected before staging. |
 | KI-003 | Open | Report-triage list and resolve routes lack administrator authentication and can expose full snapshots. |
 | KI-004 | Open | Fresh Supabase schema lacks the framework's `identities` and `ranked_report` columns, which is expected to break production persistence. |
