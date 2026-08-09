@@ -42,9 +42,10 @@ or service provisioning is included.
 |---|---|---|
 | Deployment response policy | Added root Pages middleware for CSP, HSTS, no-referrer, nosniff, DENY/frame-ancestors, Permissions-Policy, noindex/noarchive, and API no-store; added `robots.txt`. | None. |
 | Origin boundary | Removed the Pages wildcard CORS preflight and reject browser writes whose `Origin` differs from the exact application origin. | None; transport security only. |
-| Cloudflare packaging | Renamed the Wrangler project to `kimsvideo-civ-vanilla`, compiled Functions, stored server secrets encrypted, and selected fail-closed behavior. No deployment exists. | None. |
-| Hosted verification | Added hosted Playwright configuration, Realtime evidence, targeted cleanup, and deployment artifact/IP scanners. | None; tests and operations only. |
+| Cloudflare packaging | Renamed the Wrangler project to `kimsvideo-civ-vanilla`, compiled Functions, stored server secrets encrypted, selected fail-closed behavior, and deployed behind production-alias plus wildcard-preview Access. | None; hosting and access control only. |
+| Hosted verification | Added hosted Playwright configuration, Realtime evidence, targeted cleanup, deployment artifact/IP scanners, and a same-origin intercepted referrer probe compatible with the staging CSP. | None; tests and operations only. |
 | Supabase staging | Applied the unchanged Phase 1 ordered migration to a dedicated owner project and verified RLS/PostgREST/service-role/Realtime boundaries. | None; persistence provider only. |
+| Provider credential lifecycle | Rotated the Pages database secret to the current Supabase key path and revoked the inspected legacy signing key; removed all temporary Access test credentials after validation. | None; credential hygiene only. |
 
 No Phase 2 change alters rules, actions, legality, map/game data, graphics,
 scoring, deterministic RNG, or normal vanilla gameplay.

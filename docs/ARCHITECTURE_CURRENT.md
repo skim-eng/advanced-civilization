@@ -3,8 +3,8 @@
 Baseline: `4b3f981cdf4b3cefbb8f523b0d78c9eb320e1422`.
 Phase 1 implementation checkpoint:
 `c0ee66fa4b3cddd9b0c3b36647ac718c1be21f26`.
-Phase 2 provider checkpoint:
-`59cf3e3bced82f3bbd5db8e9918f313aa864e283`.
+Phase 2 validated application checkpoint:
+`36c974e5e9dc44d3ebe77cf8d67dc6f69ea93846`.
 
 ## Components
 
@@ -16,7 +16,7 @@ Phase 2 provider checkpoint:
 | Shared API router | `src/server/handlers.ts` | One strict, bounded, safe-error REST router for Node and Pages. Protected routes authenticate only the scoped session. |
 | Authentication | `src/server/secure-id.ts`, `session*.ts` | 256-bit game/invite IDs; fragment invitation exchange; AES-GCM HttpOnly game-path cookie. |
 | Local server | `src/server/game-server.ts`, `http.ts` | Loopback Node API with isolated filesystem persistence by default. Optional Supabase/Realtime/Resend/owner services are environment-gated. |
-| Configured Pages Function | `functions/api/[[path]].ts` | Same router/session/projection using encrypted server-only Supabase configuration; exact-origin writes and fail-closed packaging are verified locally. No public deployment exists yet. |
+| Private Pages Function | `functions/api/[[path]].ts` | Deployed same router/session/projection using encrypted server-only Supabase configuration; exact-origin writes and fail-closed packaging are hosted and verified behind Access. |
 | Pages response middleware | `functions/_middleware.ts` | Applies CSP, HSTS, frame, permission, referrer, sniffing, indexing, and API cache controls to static and Function responses. |
 | Browser API/UI | `src/client/api.ts`, `src/ui/` | Same-origin credential-free URLs after exchange, expected-turn writes, polling, optional state-free Realtime refresh. |
 | Persistence schema | `supabase/migrations/`, `supabase/schema.sql` | Ordered PostgreSQL schema for framework 0.42; every table uses RLS with server-only grants. Applied to owner staging project `csbcmaiytgotctodxahz`. |
@@ -32,7 +32,7 @@ flowchart LR
     B["Browser URL\n?game=id only"]
     H["Strict shared API router"]
     G["GameServer\nauthority + concurrency"]
-    P["FsStore or future SupabaseStore\nunredacted canonical rows"]
+    P["FsStore or hosted SupabaseStore\nunredacted canonical rows"]
     E["Deterministic Civ engine"]
     V["viewFor(authenticated seat)\nrole-specific response"]
     R["Optional Realtime\n{turn} signal only"]
@@ -63,7 +63,9 @@ temporary stores and remove them with guarded prefix checks. Restart tests build
 a new store/server/session-codec instance over the same directory, reconnect,
 and continue the game.
 
-The private staging topology remains Cloudflare Pages Functions plus Supabase.
+The private staging topology is Cloudflare Pages Functions plus Supabase. Both
+the production alias and immutable preview hostnames are protected by Access;
+the browser cannot contact PostgREST for authoritative rows.
 Ordered migrations create
 `dbf_games`, `dbf_snapshots`, `dbf_messages`, and `dbf_reports`, including
 framework 0.42 `identities` and `ranked_report` fields. All tables have RLS
@@ -102,11 +104,12 @@ upstream games hub, splash, counter, identity, leaderboard, rating, analytics,
 beacon, and report integrations are not contacted. Browser tests abort and
 record every unexpected external request.
 
-Future owner services require explicit configuration described in
+Owner services require explicit configuration described in
 `docs/NETWORK_ALLOWLIST.md`. Server secrets never use `VITE_`. The client-safe
 Supabase URL/publishable key are configured only after hosted RLS and Realtime
-provider validation. The Pages project has zero deployments until Access can be
-activated without violating the no-charge authorization boundary.
+provider validation. Hosted browser capture reached only same-origin Pages and
+the owner Supabase Realtime endpoint; no upstream identity, analytics,
+leaderboard, reporting, email, beacon, or hub service was contacted.
 
 ## Reporting
 

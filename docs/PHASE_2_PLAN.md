@@ -11,7 +11,7 @@ Accepted hosted runs: push `31319269620`; pull request `31319270762`
 Finish the basic version: John Champaign's preserved vanilla application,
 privately deployed to owner-controlled Cloudflare Pages/Functions and a
 dedicated owner-controlled Supabase staging project, then multiplayer-validated.
-Use free tiers only. Do not deploy to production, link from `kimsvideo.org`,
+Use free tiers only. Do not deploy to the public production site, link from `kimsvideo.org`,
 begin Phase 3, or change rules, action legality, map/game data, graphics,
 scoring, deterministic RNG, or normal vanilla gameplay.
 
@@ -28,25 +28,25 @@ accepted risk merely to finish the phase.
 
 | Gate | Required evidence | Status |
 |---|---|---|
-| P2-01 merge and history | PR #2 final head/checks/mergeability reconfirmed; ordinary merge SHA, `main`, baseline branch/tag, branch, PR, and run IDs recorded | PASS — PR #2 merged as `ba773789c52f3757f68ea459abeb7da8a8f01f27`; protected refs will be rechecked at final gate |
-| P2-02 clean source gate | Clean checkout of exact deployment SHA: `npm ci`, both audits, 202 unit tests, schema, RLS, typecheck, server/UI/Functions builds, deployment/secret scans, deterministic build, and six Playwright tests | PARTIAL — full clean gate passed at source checkpoint `c96679c75029d0a25edabc3ce9403f6fb84d8ab8`; repeat at the eventual deployment SHA remains required |
-| P2-03 deployment controls | No broad CORS; same-origin API; CSP, no-referrer, nosniff, HSTS, DENY/frame-ancestors, Permissions-Policy, noindex/nofollow/noarchive, and `robots.txt` deny | PARTIAL — implementation/unit/build checks pass; hosted headers await the first gated deployment |
+| P2-01 merge and history | PR #2 final head/checks/mergeability reconfirmed; ordinary merge SHA, `main`, baseline branch/tag, branch, PR, and run IDs recorded | PASS — PR #2 merged as `ba773789c52f3757f68ea459abeb7da8a8f01f27`; protected refs rechecked at the final gate |
+| P2-02 clean source gate | Clean checkout of exact deployment SHA: `npm ci`, both audits, 202 unit tests, schema, RLS, typecheck, server/UI/Functions builds, deployment/secret scans, deterministic build, and six Playwright tests | PASS — full clean gate passed at `36c974e5e9dc44d3ebe77cf8d67dc6f69ea93846`; exact-source push `31323540748` and PR `31323542533` are green |
+| P2-03 deployment controls | No broad CORS; same-origin API; CSP, no-referrer, nosniff, HSTS, DENY/frame-ancestors, Permissions-Policy, noindex/nofollow/noarchive, and `robots.txt` deny | PASS — hosted SPA, API, and robots responses pass; `/api/*` has no broad CORS |
 | P2-04 Supabase infrastructure | Dedicated owner staging project/reference on free tier; ordered migrations applied from zero; checksum recorded | PASS — `csbcmaiytgotctodxahz`, `us-east-1`, migration SHA-256 `78c377bbde6417871177833aec31cb8fdefb7df86e9c3873f1f4af13a46801c2` |
 | P2-05 hosted schema and RLS | Expected tables/columns/indexes/RLS; no public policies; anon/authenticated PostgREST CRUD denial; server-only service lifecycle and targeted cleanup | PASS — all four tables/catalogs correct; anon 401, authenticated 403, service lifecycle 201/200/204, zero rows after cleanup |
-| P2-06 hosted Realtime | Actual hosted channel emits state-free refresh signals only; unauthorized direct table/state access denied; polling fallback remains functional | PARTIAL — hosted provider delivered `{turn}` and `{}` only and no `dbf_*` table is published; end-to-end deployed refresh/polling remains pending |
-| P2-07 Cloudflare infrastructure | Owner Pages project builds `dist-ui` plus `functions/`; deployment SHA/ID and encrypted secret names recorded; upstream/report/analytics/email integrations off | PARTIAL — project `kimsvideo-civ-vanilla` exists with zero deployments, encrypted secrets, fail-closed Functions, and a successful local Wrangler Functions build |
-| P2-08 Cloudflare Access | Entire Pages hostname and `/api/*` deny unauthenticated browser and raw HTTP; authorized owner/test access works | BLOCKED — official docs require payment details even for Free; the account has no existing Access entitlement; checkout requires recurring overage-charge authorization; budget alerts are informational and no hard spending cap was found; no consent was given and no deployment was made |
-| P2-09 private Pages URL | SPA and Function health, headers, invitation/referrer, API, persistence, Realtime/polling, and multiplayer matrix pass | PENDING |
+| P2-06 hosted Realtime | Actual hosted channel emits state-free refresh signals only; unauthorized direct table/state access denied; polling fallback remains functional | PASS — `{turn}`/`{}` only, zero published `dbf_*` tables, direct browser roles denied, hosted Realtime and 2.5-second polling fallback pass |
+| P2-07 Cloudflare infrastructure | Owner Pages project builds `dist-ui` plus `functions/`; deployment SHA/ID and encrypted secret names recorded; upstream/report/analytics/email integrations off | PASS — private project `kimsvideo-civ-vanilla`, source `36c974e…`, current deployment `7b06806f-b8c1-46c4-8cd4-dcbd30a19625`, encrypted secrets, fail-closed Functions, optional integrations off |
+| P2-08 Cloudflare Access | Entire Pages hostname and `/api/*` deny unauthenticated browser and raw HTTP; authorized owner/test access works | PASS — production alias and wildcard preview hostname are deny-by-default; root/API raw denial and owner-authorized browser access pass; temporary policies/tokens removed |
+| P2-09 private Pages URL | SPA and Function health, headers, invitation/referrer, API, persistence, Realtime/polling, and multiplayer matrix pass | PASS — `https://kimsvideo-civ-vanilla.pages.dev`; hosted Playwright 7/7 plus raw header/API checks |
 | P2-10 custom domain | Existing zone only; DNS/TLS active, `PUBLIC_BASE_URL` updated, redeployed, and P2-08/P2-09 repeated; otherwise exact blocker recorded | NOT APPLICABLE — this Cloudflare account reports zero domains/subdomains, so no `kimsvideo.org` zone or DNS record is available and no DNS was changed |
-| P2-11 artifact and IP boundary | Built assets/source maps contain no canary/secret/server-only variable/upstream credential/invitation/private fixture; manifest has no VASSAL module, extracted art, OCR rules PDF, or deploy-only proprietary asset | PARTIAL — local browser/Functions manifest passes; repeat at final deployment SHA after provider build |
-| P2-12 hosted multiplayer/security | Raw API plus isolated browser contexts for 2/4/6 players cover identity/isolation/redaction/auth/legal/off-clock/refresh/reconnect/redeploy persistence/chat/malformed/stale/duplicate/race/failure behavior | PENDING |
-| P2-13 invitation diagnostics | Invitation disappears from visible URL/history after exchange and is absent from referrers, logs, console, screenshots, traces, videos, source maps, error bodies, and analytics | PENDING |
-| P2-14 limited soak | Ten mixed-seat games within free-tier limits; measured requests/status/latency and Realtime/polling observations recorded without capacity extrapolation | PENDING |
-| P2-15 cleanup and rollback | Targeted test-data cleanup; Pages rollback rehearsed; Supabase backup/restore or plan-appropriate rollback documented and exercised to the safe extent supported | PARTIAL — provider fixtures were deleted and schema recovery was rehearsed from the canonical migration; free-plan data restore and Pages rollback remain unclaimed |
-| P2-16 records and disposition | Architecture, deployment, decisions, security, issues, deviations, migrations, multiplayer/manual records, and `VANILLA_STAGING_ACCEPTANCE.md` complete with PASS/CONDITIONAL PASS/FAIL | PENDING |
-| P2-17 PR/merge gate | Phase 2 PR exact head green and staging revalidated at that head; merge only for PASS, then record/revalidate merge SHA | PENDING |
+| P2-11 artifact and IP boundary | Built assets/source maps contain no canary/secret/server-only variable/upstream credential/invitation/private fixture; manifest has no VASSAL module, extracted art, OCR rules PDF, or deploy-only proprietary asset | PASS — four browser files and one Function file scanned; no source maps, secret/private fixture, VASSAL, board art, or OCR rules PDF |
+| P2-12 hosted multiplayer/security | Raw API plus isolated browser contexts for 2/4/6 players cover identity/isolation/redaction/auth/legal/off-clock/refresh/reconnect/redeploy persistence/chat/malformed/stale/duplicate/race/failure behavior | PASS — hosted 7/7 plus 38 soak projection checks, chat/cross-game isolation, redeploy persistence, and safe error/race coverage |
+| P2-13 invitation diagnostics | Invitation disappears from visible URL/history after exchange and is absent from referrers, logs, console, screenshots, traces, videos, source maps, error bodies, and analytics | PASS — fragment exchange and same-origin probe pass; no invitation in retained artifacts or egress |
+| P2-14 limited soak | Ten mixed-seat games within free-tier limits; measured requests/status/latency and Realtime/polling observations recorded without capacity extrapolation | PASS — ten games, 117 requests (116 expected 200, one deliberate 401), p50 394.50 ms, p95 873.38 ms, maximum 1,242.91 ms |
+| P2-15 cleanup and rollback | Targeted test-data cleanup; Pages rollback rehearsed; Supabase backup/restore or plan-appropriate rollback documented and exercised to the safe extent supported | PASS — rollback/restore between `7b06806f…` and `8f3a86e3…` passed; 34 recorded games removed; all four tables zero; migration-from-zero recovery rehearsed |
+| P2-16 records and disposition | Architecture, deployment, decisions, security, issues, deviations, migrations, multiplayer/manual records, and `VANILLA_STAGING_ACCEPTANCE.md` complete with PASS/CONDITIONAL PASS/FAIL | PASS — records updated; final disposition PASS |
+| P2-17 PR/merge gate | Phase 2 PR exact head green and staging revalidated at that head; merge only for PASS, then record/revalidate merge SHA | IN PROGRESS — final documentation-only head must pass Actions, be deployed privately, and be revalidated before ordinary merge |
 
-## Cloudflare Access blocker investigation
+## Cloudflare Access activation record
 
 Read-only official documentation and owner-account UI evidence on 2026-08-09,
 with repository and PR #3 at exact HEAD
@@ -55,14 +55,15 @@ with repository and PR #3 at exact HEAD
 | Required condition | Official/account evidence | Result |
 |---|---|---|
 | Truly `$0` plan | [Zero Trust pricing](https://www.cloudflare.com/plans/zero-trust-services/) advertises `$0 forever` and a 50-user limit; checkout says `$0/month` | PASS only within included limits |
-| No open-ended card authorization | [Zero Trust setup](https://developers.cloudflare.com/cloudflare-one/setup/) requires payment details even for Free; checkout requires authorization to charge monthly overages until cancellation | FAIL |
-| No possible usage/overage charge | Billing exposes a `$10` auto-created alert, while Cloudflare's [billing changelog](https://developers.cloudflare.com/changelog/product/billing/) says alerts are informational and do not cap usage | FAIL |
-| Private before deployment | Access can provide the required control, but this account has no active entitlement and redirects to onboarding | BLOCKED |
+| No open-ended card authorization | [Zero Trust setup](https://developers.cloudflare.com/cloudflare-one/setup/) requires payment details even for Free; checkout required authorization to charge monthly overages until cancellation | OWNER AUTHORIZED after investigation |
+| No possible usage/overage charge | Billing exposes a `$10` informational alert rather than a hard cap | ACCEPTED BY OWNER; observed cost remained `$0.00` |
+| Private before deployment | Access was configured on the alias before playable deployment; Pages preview restriction protects immutable hostnames | PASS |
 
-No official no-card activation, zero-dollar hard cap, automatic shutdown at the
-free allowance, account-level charge prevention, or already-active charge-free
-Access entitlement was found. Do not replace Access with application-level
-Basic Auth or deploy while this gate is unresolved.
+The owner subsequently authorized the exact recurring-overage checkbox for the
+Zero Trust Free plan. Checkout remained `$0`, and the final account UI reported
+`$0.00`, no cost data, and all usage inside included limits. No paid plan or
+add-on was selected. The production alias and wildcard preview hostname now
+have official Access applications; application Basic Auth was not substituted.
 
 ## Secret handling
 

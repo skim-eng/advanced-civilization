@@ -3,20 +3,19 @@
 ## Status
 
 Phase 2 created the dedicated Supabase project `csbcmaiytgotctodxahz` and the
-Cloudflare Pages project `kimsvideo-civ-vanilla`. The Pages project has zero
-deployments; nothing is publicly hosted. Its future default URL is
-`https://kimsvideo-civ-vanilla.pages.dev`.
+Cloudflare Pages project `kimsvideo-civ-vanilla`. The private basic version is
+deployed at `https://kimsvideo-civ-vanilla.pages.dev` behind Cloudflare Access.
+Validated source `36c974e5e9dc44d3ebe77cf8d67dc6f69ea93846` is production deployment
+`7b06806f-b8c1-46c4-8cd4-dcbd30a19625`.
 
-Cloudflare Access is currently blocked before deployment: the `$0/month` Zero
-Trust Free checkout requires explicit authorization to charge the stored card
-for usage above included limits. That authorization was not granted. Do not
-deploy until the owner explicitly accepts that condition or supplies a
-charge-free alternative.
+Zero Trust Free was activated only after explicit owner authorization. Checkout
+was `$0`; the final billing screen remained `$0.00` and within included limits.
+Do not enable a paid plan or pay-as-you-go add-on.
 
 ### Access billing investigation
 
-Read-only reinspection on 2026-08-09 found no compliant no-card or hard-cap
-path in the current account:
+Read-only reinspection on 2026-08-09 found no no-card or hard-cap path in the
+current account:
 
 - Cloudflare's [Zero Trust setup documentation](https://developers.cloudflare.com/cloudflare-one/setup/)
   says payment details are required even for Zero Trust Free.
@@ -35,20 +34,20 @@ path in the current account:
   states that budget alerts are informational only and do not cap usage or
   affect the account.
 
-Therefore the nominally free plan satisfies the price and 50-user requirements
-only after accepting an open-ended overage authorization. No checkout control,
-account-level billing control, official no-card route, or enforceable zero-dollar
-spending cap was found. Application Basic Auth is not an Access equivalent and
-must not be substituted.
+The owner later explicitly authorized that exact Free-plan checkbox. The plan
+was activated at `$0`; Access, rather than application Basic Auth, protects the
+production alias and wildcard Pages preview hostname. After acceptance testing,
+temporary service/browser policies and credentials were removed, leaving only
+the owner production policy and owner-member preview policy.
 
 The selected Cloudflare account currently reports zero domains or subdomains,
 so it does not contain the `kimsvideo.org` zone. The conditional custom-domain
 step is therefore not applicable and no DNS record was changed.
 
-The upstream-supported architecture is retained: Cloudflare Pages + Pages Functions, Supabase Postgres, optional Supabase Realtime, and optional Resend. The planned Cloudflare project name is `kimsvideo-civ-vanilla`.
-
-Do not deploy until the remaining Phase 2 gates in `PHASE_2_PLAN.md` are
-repaired and tested.
+The upstream-supported architecture is retained: Cloudflare Pages + Pages
+Functions, Supabase Postgres, and optional state-free Supabase Realtime. Resend
+and all nonessential integrations remain disabled. The project name is
+`kimsvideo-civ-vanilla`.
 
 ## Prerequisites
 
@@ -183,8 +182,10 @@ Do not modify or link from the main `kimsvideo.org` homepage in this phase.
 - **Test-game cleanup:** identify staging games by recorded IDs/time window, export if required, then delete through a reviewed administrative procedure. Avoid broad unqualified deletes.
 - **Reports:** game deletion does not remove reports. Apply the separately documented retention/deletion process.
 
-Cloudflare rollback cannot be rehearsed while the project has zero deployments.
-It remains a hard acceptance gate after the first Access-protected deployment.
+Cloudflare rollback was rehearsed from `7b06806f-b8c1-46c4-8cd4-dcbd30a19625`
+to `8f3a86e3-bdbb-4805-9c9d-a6d869d6e8ea` and restored. Access, Function
+health, and persisted state passed after both transitions. Targeted cleanup
+removed the 34 recorded acceptance games and verified all four tables empty.
 
 ## Evidence to record in Phase 2
 

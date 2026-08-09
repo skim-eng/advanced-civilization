@@ -49,11 +49,11 @@ each with 200, targeted deletion returned 204, cascading removal covered
 snapshots/messages, and all four follow-up counts were zero. The temporary Auth
 user was also deleted.
 
-Actual hosted Realtime accepted the framework broadcaster and delivered one
-`moved` payload with only `turn` plus one `message` payload with no keys. The
+Actual hosted Realtime accepted the framework broadcaster and delivered only
+`moved` payloads containing `turn` and `message` payloads with no keys. The
 `supabase_realtime` publication contains zero `dbf_*` tables, so authoritative
-rows are not a table-change feed. End-to-end browser refetch remains part of the
-Cloudflare deployment gate.
+rows are not a table-change feed. End-to-end browser Realtime refetch and the
+2.5-second polling fallback passed against the private Pages deployment.
 
 Do not paste `schema.sql` into an already-populated project as an undocumented
 substitute for ordered migrations.
@@ -62,10 +62,10 @@ substitute for ordered migrations.
 
 Game deletion uses `delete from dbf_games where game_id = …`; snapshots and messages cascade. Phase 1 creates no reports. A full legacy-report purge is `delete from dbf_reports` under the server role and is verified in the lifecycle test. Any future retention design requires a new migration and policy decision.
 
-Phase 2 cleanup uses only recorded 256-bit game IDs. It deletes matching report
-rows and the matching game row, relies on reviewed foreign-key cascades, then
-requires zero matching rows in all four tables. Broad or unqualified deletion
-is prohibited.
+Phase 2 cleanup used only 34 recorded 256-bit game IDs. It deleted matching
+report rows and game rows, relied on reviewed foreign-key cascades, then
+verified global zero rows in all four tables. Broad or unqualified deletion is
+prohibited.
 
 ## Free-plan recovery boundary
 
@@ -76,4 +76,6 @@ both isolated PGlite and the hosted staging project rehearsed schema recovery.
 Before any future hosted migration, create an untracked logical dump with the
 Supabase CLI/`pg_dump`, checksum it without logging credentials, and restore it
 only into a separate disposable target for catalog comparison. No owner game
-data exists at this checkpoint, and no data-restore result is claimed.
+data exists at this checkpoint. A legacy signing key inspected during provider
+verification was revoked after Pages moved to the current key path; the revoked
+key returns 401. No key value is recorded.

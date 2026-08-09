@@ -98,37 +98,38 @@ PostgREST/Realtime, Cloudflare Access/headers/domain, backup/rollback, and
 load/soak were not run because Phase 1 prohibits provisioning or deployment.
 They remain explicit Phase 2 gates.
 
-## Phase 2 provider checkpoint
+## Phase 2 hosted acceptance
 
 - Date: 2026-08-09
 - Branch: `codex/phase2-vanilla-staging`
-- Application deployment: none; Cloudflare Access is not active, so the
-  private-hosting prerequisite is not satisfied.
-- Supabase staging project: `csbcmaiytgotctodxahz` (`us-east-1`, Free).
+- Validated application: `36c974e5e9dc44d3ebe77cf8d67dc6f69ea93846`
+- Private URL: `https://kimsvideo-civ-vanilla.pages.dev`
+- Supabase staging: `csbcmaiytgotctodxahz` (`us-east-1`, Free)
 
-The reviewed migration was applied from zero to the dedicated hosted project.
-The hosted catalog contains the four expected `dbf_*` tables with RLS enabled,
-zero policies, no `anon` or `authenticated` table privileges, and the expected
-service-role privileges. Direct PostgREST checks returned `401` for four anon
-reads and `403` for four authenticated reads; service-role inserts returned
-`201`, reads returned `200`, and targeted cleanup returned `204` with all four
-table counts back at zero. The temporary Auth test user was deleted.
+Hosted Playwright passed 7/7 in 14.5 seconds. Separate contexts covered every
+seat in 2-, 4-, and 6-player games, distinct credentials/identities, raw hidden
+projection, legal/off-clock action behavior, malformed/oversized/unsupported
+requests, stale/duplicate/raced writes, cross-game denial, invitation exchange,
+fresh-browser reconnect, polling fallback, state-free hosted Realtime refresh,
+and persistence through an application redeploy. Exactly one concurrent move
+committed. Opponent hands were empty, outbound RNG was zero, calamity provenance
+was empty, and no invite or seat token appeared in a projected response.
 
-An actual hosted Realtime subscription connected successfully. Framework
-broadcasts carried only `{ turn }` for the move refresh signal and `{}` for the
-message refresh signal. No `dbf_*` table is in the
-`supabase_realtime` publication, so database rows are not streamed to browser
-roles.
+The ten-game bounded soak used 2 seats x4, 4 seats x3, and 6 seats x3. It made
+117 requests: 116 expected 200 and one deliberate cross-game 401. Latency was
+394.50 ms p50, 873.38 ms p95, and 1,242.91 ms maximum. Realtime refresh was
+333.46–1,238.69 ms and polling fallback was 2,985.70–3,893.67 ms. Four
+reconnects, 38 hidden-projection checks, and game-chat isolation passed. This is
+a bounded observation, not a capacity claim.
 
-The deployed 2/4/6-player browser and raw-API matrix, copied-invitation test,
-application-redeploy persistence, polling fallback, hosted Realtime refresh,
-ten-game soak, latency/request measurements, rollback, and final cleanup are
-not claimed. They remain blocked until Cloudflare Access can be activated
-without violating the no-charge authorization boundary and an exact green SHA
-can be deployed privately.
+The reviewed migration/provider checks also passed: four RLS-enabled tables,
+zero public policies, browser-role PostgREST denial, server lifecycle, only
+`{turn}`/`{}` broadcasts, and zero game tables in the Realtime publication.
+Targeted cleanup removed 34 recorded games and left all four tables empty.
 
 ## Vanilla integrity
 
-The Phase 1 diff changes no file under `src/data`, no map/graphics/artwork, and no
-rules/action/scoring implementation. The only engine diff is the outbound
-`viewFor` redaction. Seeded canonical state and gameplay behavior are unchanged.
+The Phase 1/2 diff changes no file under `src/data`, no map/graphics/artwork,
+and no rules/action/scoring implementation. The only engine diff is the
+outbound `viewFor` redaction. Seeded canonical state and gameplay behavior are
+unchanged.

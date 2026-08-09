@@ -83,10 +83,17 @@
 - **Reason:** The upstream projection covered hands and trade bundles but still exposed unrevealed future cards, random state, and internal/pending data through raw API responses. These fields are not required by rival clients.
 - **Consequence:** Online transport and AI inputs are least-privilege without changing canonical state, seeded randomness, action legality, rules, or outcomes. Stack length remains visible so the existing ninth-stack control behaves normally.
 
-## ADR-0012 — Fail closed and do not authorize provider overage charges
+## ADR-0012 — Fail closed and activate only owner-authorized Zero Trust Free
 
 - **Date:** 2026-08-09
-- **Status:** Accepted for Phase 2
-- **Decision:** Create the dedicated free-tier Supabase and Pages resources, store server credentials only as encrypted Pages secrets, compile Functions before deployment, and configure Pages Functions to fail closed. Do not activate Cloudflare Zero Trust or deploy the application when the nominally free checkout requires authorization to charge a stored card for usage above included limits unless the owner explicitly approves that authorization.
+- **Status:** Accepted and implemented in Phase 2
+- **Decision:** Create the dedicated free-tier Supabase and Pages resources, store server credentials only as encrypted Pages secrets, compile Functions before deployment, and configure Pages Functions to fail closed. Activate only Zero Trust Free after the owner explicitly approves its recurring-overage authorization; stop if checkout is not `$0` or any paid add-on appears.
 - **Reason:** The private Access gate is mandatory, while the project owner expressly prohibited any purchase or possible charge without separate approval. Official Cloudflare setup documentation requires payment details even for Free. The current account has no active Access entitlement, checkout requires recurring overage authorization, and its budget alert is informational rather than an enforceable hard cap. A temporarily public multiplayer API or application Basic Auth is not an acceptable workaround.
-- **Consequence:** The Pages project remains empty and the basic version remains not deployable until the owner approves the exact overage authorization or supplies an already-active official Access entitlement with enforceable zero-dollar charge prevention. The selected Cloudflare account has no domain zone, so no custom-domain DNS action is attempted.
+- **Consequence:** The owner approved the exact Free-plan authorization, checkout was `$0`, and final cost remained `$0.00`. Access protects both the production alias and wildcard preview hostnames. Temporary acceptance policies/tokens were deleted, and no paid add-on was enabled. The selected account has no domain zone, so no custom-domain DNS action was attempted.
+
+## ADR-0013 — Protect Pages aliases and immutable preview hostnames
+
+- **Date:** 2026-08-09
+- **Status:** Accepted and implemented in Phase 2
+- **Decision:** Use one Access application for the production `pages.dev` alias and Pages' official preview restriction for `*.kimsvideo-civ-vanilla.pages.dev`. Keep the narrow owner policy on both surfaces and remove temporary automation access immediately after validation.
+- **Reason:** Protecting only the production alias leaves immutable deployment hostnames reachable. The private-staging boundary applies to every playable Pages hostname and `/api/*`, not merely the friendly alias.

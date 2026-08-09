@@ -1,11 +1,8 @@
 # Manual multiplayer record
 
 Date: 2026-08-09  
-Phase: 1 local-only  
-Implementation checkpoint: `c0ee66fa4b3cddd9b0c3b36647ac718c1be21f26`
-
-No deployed URL, Cloudflare resource, hosted Supabase project, production secret,
-physical mobile device, or cross-network peer was used.
+Phase: 2 private vanilla staging
+Validated application: `36c974e5e9dc44d3ebe77cf8d67dc6f69ea93846`
 
 ## Locally available checks
 
@@ -24,28 +21,30 @@ The untouched-baseline smoke record remains in
 `docs/MULTIPLAYER_TEST_RESULTS.md`; Phase 1 automated Playwright supplies stronger
 repeatable evidence than shared manual tabs.
 
-## Not available in Phase 1
+## Remaining physical-device limitations
 
 | Check | Status | Required context |
 |---|---|---|
 | iPhone Safari | NOT RUN | Physical iPhone and a permitted reachable environment. |
 | Android Chrome | NOT RUN | Physical Android device and a permitted reachable environment. |
 | Same-LAN second machine | NOT RUN | Exposing local development beyond loopback is intentionally prohibited. |
-| Different-network joining | NOT RUN | Gated deployed staging environment. |
+| Different-network joining | PASS (isolated hosted contexts) | Separate authenticated browser contexts used the remote Access-protected deployment; a second physical network was not used. |
 | Sleep/resume and background-tab mobile behavior | NOT RUN | Physical devices and staging. |
 | Network switching / transient mobile loss | NOT RUN | Physical devices and staging. |
-| Hosted Realtime latency | NOT RUN | Owner-controlled Supabase after Phase 2 authorization. |
-| Deployment survival, Access, headers, domain | NOT RUN | Cloudflare/Supabase staging after Phase 2 authorization. |
-| Load/soak | NOT RUN | Approved isolated environment and quota plan. |
+| Hosted Realtime latency | PASS | State-free refresh measured 333.46–1,238.69 ms in the bounded soak. |
+| Deployment survival and Access | PASS | Raw unauthenticated denial, owner browser access, security headers, redeploy persistence, and rollback/restore passed. |
+| Custom domain | NOT APPLICABLE | Selected Cloudflare account has zero zones; no DNS changed. |
+| Load/soak | PASS (bounded) | Ten games, mixed 2/4/6 seats, 117 requests; no capacity extrapolation. |
 
-These omissions are explicit Phase 2/device limitations. They do not replace
-the automated local acceptance matrix and are not represented as passing.
+The physical-device omissions are accepted private-staging limitations. They do
+not replace the automated local and hosted acceptance matrices and are not
+represented as passing.
 
-## Phase 2 provider checkpoint
+## Phase 2 provider result
 
-The owner Supabase project passed hosted catalog, PostgREST role, service
-lifecycle/cleanup, and state-free Realtime checks. The Cloudflare Pages project
-was created with zero deployments and therefore no browser multiplayer claim is
-made. Access activation stopped at a checkout requiring possible overage card
-charges; no checkboxes were accepted. The Cloudflare account reports no domain
-zone, so custom-domain and physical-device/cross-network checks remain unrun.
+The owner Supabase project passed catalog, PostgREST role, service lifecycle,
+state-free Realtime, recovery, and targeted cleanup checks. The private Pages
+deployment passed 7/7 hosted Playwright tests, 2/4/6-seat isolation, refresh,
+reconnect, polling, Realtime, redeploy persistence, Access, headers, invitation
+diagnostics, rollback, and the bounded ten-game soak. Temporary test Access
+credentials were removed; only the owner policies remain.
