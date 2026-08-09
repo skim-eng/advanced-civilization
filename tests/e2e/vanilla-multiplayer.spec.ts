@@ -48,8 +48,12 @@ async function monitorExternalTraffic(context: BrowserContext): Promise<string[]
   return unexpected;
 }
 
-async function openSeat(context: BrowserContext, invite: string, expectedSeat: string): Promise<Page> {
+async function openSeat(context: BrowserContext, invite: string, expectedSeat: string, diagnostics?: string[]): Promise<Page> {
   const page = await context.newPage();
+  if (diagnostics) {
+    page.on('console', (message) => diagnostics.push(message.text()));
+    page.on('pageerror', (error) => diagnostics.push(error.message));
+  }
   try {
     await page.goto(invite, { waitUntil: 'domcontentloaded' });
   } catch {
@@ -187,25 +191,29 @@ test('exchanges a copied invitation into a refreshable HttpOnly session without 
 
   const first = await browser.newContext();
   const copied = await browser.newContext();
+  const browserDiagnostics: string[] = [];
   let observedReferrer: string | undefined;
   await first.route('https://referrer.invalid/**', async (route) => {
     observedReferrer = route.request().headers().referer;
     await route.fulfill({ status: 204, body: '' });
   });
   try {
-    const firstPage = await openSeat(first, invite, 'Italy');
+    const firstPage = await openSeat(first, invite, 'Italy', browserDiagnostics);
     expect(await firstPage.evaluate(() => document.cookie)).not.toContain('chronicle_seat');
-    expect(firstPage.url()).not.toContain(credential);
+    if (firstPage.url().includes(credential)) throw new Error('visible URL retained the invitation credential');
     await firstPage.reload();
     await expect(firstPage.getByText(/you are Italy/i)).toBeVisible();
     await firstPage.evaluate(() => fetch('https://referrer.invalid/probe'));
     expect(observedReferrer).toBeUndefined();
 
-    const copiedPage = await openSeat(copied, invite, 'Italy');
-    expect(copiedPage.url()).not.toContain(credential);
+    const copiedPage = await openSeat(copied, invite, 'Italy', browserDiagnostics);
+    if (copiedPage.url().includes(credential)) throw new Error('copied invitation remained in the visible URL');
     await copiedPage.goBack({ waitUntil: 'domcontentloaded' });
-    expect(copiedPage.url()).not.toContain(credential);
+    if (copiedPage.url().includes(credential)) throw new Error('browser history retained the invitation credential');
     expect(copiedPage.url()).not.toContain('invite=');
+    if (browserDiagnostics.some((message) => message.includes(credential))) {
+      throw new Error('browser console or page error contained the invitation credential');
+    }
   } finally {
     await Promise.all([first.close(), copied.close()]);
   }

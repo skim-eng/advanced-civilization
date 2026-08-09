@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { mkdtempSync } from 'node:fs';
+import { afterAll, describe, expect, it } from 'vitest';
+import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Rng } from 'digital-boardgame-framework';
@@ -12,8 +12,23 @@ import { handleApi } from './handlers.js';
 import { secureId } from './secure-id.js';
 import { SeatSessionCodec } from './session.js';
 
+const temporaryDirectories: string[] = [];
+
+function temporaryStore(prefix: string) {
+  const directory = mkdtempSync(join(tmpdir(), prefix));
+  temporaryDirectories.push(directory);
+  return { directory, store: new FsStore(directory) };
+}
+
+afterAll(() => {
+  for (const directory of temporaryDirectories) {
+    if (!directory.startsWith(join(tmpdir(), 'civ-'))) throw new Error('Refusing to remove an unexpected test directory');
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
 function makeServer() {
-  const store = new FsStore(mkdtempSync(join(tmpdir(), 'civ-mp-')));
+  const { store } = temporaryStore('civ-mp-');
   return new GameServer<GameState, Action, string>({
     adapter, codec, store, broadcaster: new NoopBroadcaster(), notifier: new NoopNotifier(),
     idGen: secureId,
@@ -144,7 +159,7 @@ describe('async multiplayer (GameServer + filesystem store)', () => {
       }
       expect(encoded).not.toContain('deck-secret');
       expect(encoded).not.toContain('provenance-secret');
-      for (const token of allInviteTokens) expect(encoded).not.toContain(token);
+      expect(allInviteTokens.every((token) => !encoded.includes(token))).toBe(true);
 
       const legal = await handleApi(s, 'GET', `/api/games/${created.gameId}/legal`, new URLSearchParams(), undefined, undefined, { sessions, cookie });
       expect(legal.status).toBe(200);
@@ -203,7 +218,7 @@ describe('async multiplayer (GameServer + filesystem store)', () => {
 
   it('GET /api/reports honours the ?app_id filter (server-stamped, shared-backend isolation)', async () => {
     // A server configured with this deployment's appId stamps every report.
-    const store = new FsStore(mkdtempSync(join(tmpdir(), 'civ-app-')));
+    const { store } = temporaryStore('civ-app-');
     const s = new GameServer<GameState, Action, string>({
       adapter, codec, store, broadcaster: new NoopBroadcaster(), notifier: new NoopNotifier(),
       idGen: secureId, gameUrl: (g, t) => `/play?game=${g}#invite=${t}`, appId: 'advanced-civilization',
@@ -231,8 +246,45 @@ describe('async multiplayer (GameServer + filesystem store)', () => {
     expect((await s.fetch(gameId, egypt)).turn).toBeGreaterThanOrEqual(t0);
   });
 
+  it('reopens the filesystem store and scoped session after an application restart', async () => {
+    const { directory } = temporaryStore('civ-restart-');
+    const buildServer = () => new GameServer<GameState, Action, string>({
+      adapter, codec, store: new FsStore(directory), idGen: secureId,
+      broadcaster: new NoopBroadcaster(), notifier: new NoopNotifier(),
+      gameUrl: (game, token) => `/play?game=${game}#invite=${token}`,
+    });
+    const secret = 'restart-test-session-secret-with-more-than-thirty-two-characters';
+    let server = buildServer();
+    const created = await server.createGame({
+      initialState: createGame({ players: ['italy', 'africa'], seed: 81, maxTurns: 60, boardPreset: 'raw-2p' }),
+      players: ['italy', 'africa'],
+    });
+    const italyToken = tokenOf(created.invites.italy!);
+    const africaToken = tokenOf(created.invites.africa!);
+    const sessions = new SeatSessionCodec(secret);
+    const exchange = await handleApi(server, 'POST', `/api/games/${created.gameId}/session`, new URLSearchParams(), { inviteToken: italyToken }, undefined, { sessions });
+    const cookie = exchange.headers?.['set-cookie'];
+    const before = await server.fetch(created.gameId, italyToken);
+    const actorToken = before.yourTurn ? italyToken : africaToken;
+    await server.submit(created.gameId, actorToken, { type: 'pass' });
+    const committedTurn = (await server.fetch(created.gameId, italyToken)).turn;
+
+    // A new store, server, and session codec model a restarted Node process.
+    server = buildServer();
+    const restartedSessions = new SeatSessionCodec(secret);
+    const reconnected = await handleApi(server, 'GET', `/api/games/${created.gameId}`, new URLSearchParams(), undefined, undefined, { sessions: restartedSessions, cookie });
+    expect(reconnected.status).toBe(200);
+    expect((reconnected.body as { you: string; turn: number }).you).toBe('italy');
+    expect((reconnected.body as { turn: number }).turn).toBe(committedTurn);
+
+    const italyAfter = await server.fetch(created.gameId, italyToken);
+    const nextActor = italyAfter.yourTurn ? italyToken : africaToken;
+    await server.submit(created.gameId, nextActor, { type: 'pass' });
+    expect((await server.fetch(created.gameId, italyToken)).turn).toBe(committedTurn + 1);
+  });
+
   it('returns a sanitized persistence failure and preserves the last committed turn', async () => {
-    const store = new FsStore(mkdtempSync(join(tmpdir(), 'civ-failure-')));
+    const { store } = temporaryStore('civ-failure-');
     const s = new GameServer<GameState, Action, string>({
       adapter, codec, store, idGen: secureId,
       broadcaster: new NoopBroadcaster(), notifier: new NoopNotifier(),
