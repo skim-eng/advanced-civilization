@@ -53,6 +53,28 @@ made and this disposition must not be weakened to a conditional pass.
 - Phase 2 CI now compiles the Pages Functions with pinned Wrangler 4.120.0 and
   rejects a static-only deployment bundle before Playwright.
 
+## Clean source gate
+
+Fresh checkout: `c96679c75029d0a25edabc3ce9403f6fb84d8ab8`.
+The checkout remained clean after the gate.
+
+| Command / check | Result |
+|---|---|
+| `npm ci` | 122 packages installed; 123 audited |
+| `npm audit` | 0 vulnerabilities |
+| `npm audit --omit=dev` | 0 vulnerabilities |
+| `npm test` | 20 files; 202/202 tests passed |
+| `npm run test:schema` | 1/1 passed |
+| `npm run test:rls` | 1/1 passed |
+| `npm run typecheck` | PASS |
+| `npm run build` | PASS |
+| `npm run build:ui` | PASS; main JS 1,031.88 kB raw / 295.44 kB gzip |
+| `npm run build:functions` | PASS; Wrangler 4.120.0 compiled the worker |
+| `npm run test:secrets` | PASS; 13 names/canary values checked |
+| `npm run test:deploy-artifacts` | PASS; 4 browser files, 1 Functions file, 2,257,487 bytes |
+| `npm run verify:clean-build` | PASS; 163 deterministic artifacts |
+| `npm run test:e2e` | 6/6 passed in 10.1 seconds |
+
 ## Integrity and history confirmations
 
 - Annotated tag `john-vanilla-2026-08-09-4b3f981^{}` and
@@ -67,10 +89,9 @@ made and this disposition must not be weakened to a conditional pass.
   artwork, OCR rules PDF, source map, credential fixture, or deploy-only
   proprietary asset. No secret value is committed or recorded.
 
-The final clean install, audits, full unit gate, schema/RLS suites, server/UI
-builds, deterministic build, exact-SHA Functions build, hosted 2/4/6 matrix,
-ten-game soak, rollback, backup/export rehearsal, and final cleanup are not yet
-claimed here.
+The clean source gate must be repeated at the eventual deployment SHA. The
+hosted 2/4/6 matrix, ten-game soak, Cloudflare rollback, data restore, and final
+hosted cleanup are not yet claimed here.
 
 ## Blockers
 
