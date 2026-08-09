@@ -1,14 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useGame, useIdentity, SignInBar } from 'digital-boardgame-framework/client';
+import { useGame } from 'digital-boardgame-framework/client';
 import type { GameClientApi } from 'digital-boardgame-framework/client';
-import type { LogEntry } from 'digital-boardgame-framework';
 import { adapter } from '../engine/index.js';
 import type { Action, GameState, PlayerId } from '../engine/index.js';
 import { civilizations, civById } from '../data/index.js';
 import { availableNations, unavailableReason } from '../engine/boards.js';
-import { claimSeat, createCivClient, createNetworkGame, fetchMyReports, realtimeSubscribe, resolutionNote, tokenFromInvite, type MyReport } from '../client/api.js';
-import { REPORT_CATEGORY } from '../report-meta.js';
-import { ActionList, Board, BoardPicker, CalamityModal, CombatModal, InfoView, MovementControls, ReportModal, StatusPanel, effectiveBoardPreset, legalAreas, nationFocusArea, prettyPhase, scrollBoardTo, useMovementPlanner, type View } from './App.js';
+import { createCivClient, createNetworkGame, realtimeSubscribe } from '../client/api.js';
+import { ActionList, Board, BoardPicker, CalamityModal, CombatModal, InfoView, MovementControls, StatusPanel, effectiveBoardPreset, legalAreas, nationFocusArea, prettyPhase, scrollBoardTo, useMovementPlanner, type View } from './App.js';
 
 const API = ''; // same-origin; Vite proxies /api -> the GameServer host
 // Placeholder so the movement-planner hook can run before the game view loads.
@@ -44,8 +42,7 @@ export function Lobby() {
       const seed = Math.floor(Math.random() * 0xffff);
       const ai = Object.fromEntries(picked.slice(1).map((n) => [n, 'standard']));
       const g = await createNetworkGame(API, { players: picked, seed, maxTurns: 60, ai, boardPreset: preset.id });
-      const myUrl = g.invites[picked[0]!] ?? '';
-      location.search = `?game=${encodeURIComponent(g.gameId)}&token=${encodeURIComponent(tokenFromInvite(myUrl))}`;
+      location.href = g.invites[picked[0]!] ?? '';
     } catch (e) { setError((e as Error).message); }
   }
 
@@ -70,7 +67,7 @@ export function Lobby() {
           </div>
           <button className="civ-btn" disabled={!ok} onClick={create}>Create game ({picked.length} players)</button>
           <button className="civ-btn" style={{ marginLeft: 8 }} disabled={!ok} onClick={createVsAi}>vs AI (you = {civById.get(picked[0]!)?.name ?? picked[0]}, rest AI)</button>
-          <p className="civ-lbl" style={{ color: '#999', fontSize: 12 }}>Sign in first so your result vs the AI counts. Fewer AI seats = snappier turns.</p>
+          <p className="civ-lbl" style={{ color: '#999', fontSize: 12 }}>Fewer AI seats = snappier turns.</p>
           {invalid.length > 0 && <p style={{ color: '#f2a0a0' }}>{invalid.map((id) => civById.get(id)?.name ?? id).join(', ')} {invalid.length === 1 ? 'is' : 'are'} not available on this board (rules {preset.rule}) — unselect {invalid.length === 1 ? 'it' : 'them'}, or pick another board.</p>}
           {error && <p style={{ color: '#f88' }}>{error}</p>}
         </>
@@ -83,7 +80,7 @@ export function Lobby() {
                 <td style={{ fontWeight: 800, color: civById.get(seat)?.color, padding: '4px 8px' }}>{civById.get(seat)?.name ?? seat}</td>
                 <td><input readOnly value={url} style={{ width: '100%' }} onFocus={(e) => e.currentTarget.select()} /></td>
                 <td><button className="civ-btn" onClick={() => navigator.clipboard?.writeText(url)}>Copy</button></td>
-                <td><button className="civ-btn" onClick={() => { location.search = `?game=${encodeURIComponent(created.gameId)}&token=${encodeURIComponent(tokenFromInvite(url))}`; }}>Open as {civById.get(seat)?.name ?? seat}</button></td>
+                <td><button className="civ-btn" onClick={() => { location.href = url; }}>Open as {civById.get(seat)?.name ?? seat}</button></td>
               </tr>
             ))}
           </tbody></table>
@@ -95,20 +92,11 @@ export function Lobby() {
 
 // ---- Online game (driven by useGame) --------------------------------------
 
-export function OnlineGame({ gameId, token }: { gameId: string; token: string }) {
-  // Ranked play: the player's hub identity, read fresh on each move via a ref so
-  // the memoized client never goes stale when they sign in mid-game.
-  const { identity } = useIdentity();
-  const identityTokenRef = useRef<string | undefined>(undefined);
-  identityTokenRef.current = identity?.token;
+export function OnlineGame({ gameId }: { gameId: string }) {
   const client: GameClientApi<GameState, Action> = useMemo(
-    () => createCivClient({ baseUrl: API, gameId, token, getIdentityToken: () => identityTokenRef.current }),
-    [gameId, token],
+    () => createCivClient({ baseUrl: API, gameId }),
+    [gameId],
   );
-  // Attach this seat's identity on join (and whenever the player signs in).
-  useEffect(() => {
-    if (identity?.token) void claimSeat(API, gameId, token, identity.token);
-  }, [identity?.token, gameId, token]);
   const subscribe = useMemo(() => realtimeSubscribe(gameId, import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_ANON_KEY), [gameId]);
   const game = useGame<GameState, Action>(client, { pollMs: 2500, ...(subscribe ? { subscribe } : {}) });
   const [selected, setSelected] = useState<string | null>(null);
@@ -197,34 +185,9 @@ export function OnlineGame({ gameId, token }: { gameId: string; token: string })
         <div className="civ-panel" style={{ width: 210, padding: 6, display: 'flex', flexDirection: 'column', gap: 6, overflowY: 'auto', minHeight: 0 }}>
           <div style={{ textAlign: 'center', fontWeight: 800, letterSpacing: 1 }}>{prettyPhase(s.phase).toUpperCase()}</div>
           <div className="civ-lbl">Turn {s.turn} · you are <b style={{ color: civById.get(you)?.color }}>{civById.get(you)?.name}</b></div>
-          <SignInBar leaderboardHref="https://games-hub-5vo.pages.dev/leaderboard?game=advanced-civilization" />
           <button className="civ-btn" onClick={() => downloadLog(s, gameId)}>Download game log</button>
-          <BugReport client={client} view={s} />
         </div>
       </div>
-    </>
-  );
-}
-
-// ---- Bug reporting + log upload -------------------------------------------
-
-function BugReport({ client, view }: { client: GameClientApi<GameState, Action>; view: GameState }) {
-  const [open, setOpen] = useState(false);
-  const [mine, setMine] = useState<MyReport[]>([]);
-  const refreshMine = useCallback(() => { fetchMyReports(API).then(setMine).catch(() => {}); }, []);
-  useEffect(() => { refreshMine(); }, [refreshMine]);
-  const answered = mine.filter((r) => resolutionNote(r.resolution));
-  const send = async (message: string, severity: string) => {
-    // Attach the game's move log; the server stores the full snapshot too.
-    const clientLog: LogEntry[] = view.log.map((m, i) => ({ turn: view.turn, kind: 'log', payload: typeof m === 'string' ? m : m.msg ?? m.kind, ts: i }));
-    const { reportId } = await client.report({ message, severity, category: REPORT_CATEGORY, clientLog, clientBuild: 'web-ui', userAgent: navigator.userAgent } as never);
-    setTimeout(refreshMine, 500);
-    return reportId as string;
-  };
-  return (
-    <>
-      <button className="civ-btn" onClick={() => { refreshMine(); setOpen(true); }}>Report a problem{answered.length ? ` (${answered.length} ✓)` : ''}</button>
-      {open && <ReportModal mine={mine} onSend={send} onClose={() => setOpen(false)} />}
     </>
   );
 }

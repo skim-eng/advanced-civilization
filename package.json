@@ -10,11 +10,16 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
+    "test:e2e": "playwright test",
+    "test:schema": "vitest run --config vitest.schema.config.ts",
+    "test:rls": "vitest run --config vitest.rls.config.ts",
+    "test:secrets": "node scripts/check-browser-secrets.mjs",
     "test:watch": "vitest",
     "extract": "node --experimental-strip-types scripts/extract-map.ts",
     "build:board": "node scripts/build-board.mjs",
     "dev": "vite",
     "build:ui": "vite build",
+    "verify:clean-build": "node scripts/verify-clean-build.mjs",
     "serve": "tsc -p tsconfig.json && node dist/server/http.js",
     "build:coasts": "node scripts/build-coasts.mjs"
   },
@@ -27,11 +32,13 @@
     "react-dom": "^19.2.7"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "0.5.4",
+    "@playwright/test": "1.62.1",
     "@types/node": "^22.0.0",
-    "@vitejs/plugin-react": "^4.7.0",
+    "@vitejs/plugin-react": "6.0.5",
     "sharp": "^0.35.2",
     "typescript": "^5.6.0",
-    "vite": "^5.4.21",
-    "vitest": "^2.1.0"
+    "vite": "8.2.1",
+    "vitest": "4.1.10"
   }
 }

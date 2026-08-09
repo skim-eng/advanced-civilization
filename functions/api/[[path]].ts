@@ -10,6 +10,10 @@ import { adapter, codec, type Action, type GameState } from '../../src/engine/in
 import { HeuristicAI } from '../../src/ai/heuristic.js';
 import { handleApi } from '../../src/server/handlers.js';
 import { APP_ID } from '../../src/report-meta.js';
+import { secureId } from '../../src/server/secure-id.js';
+import { SeatSessionCodec } from '../../src/server/session.js';
+import { reportAdminConfig } from '../../src/server/report-admin.js';
+import { readFetchJson, RequestInputError } from '../../src/server/request-input.js';
 
 interface Env {
   SUPABASE_URL: string;
@@ -19,16 +23,24 @@ interface Env {
   PUBLIC_BASE_URL?: string;
   /** Shared secret matching the hub's RATINGS_INGEST_KEY (enables ranked play). */
   RATINGS_INGEST_KEY?: string;
+  /** Optional external integrations remain off unless this is exactly `true`. */
+  ENABLE_UPSTREAM_SERVICES?: string;
+  /** Owner-controlled identity/counter/rating service base URL. */
+  UPSTREAM_HUB_URL?: string;
+  /** At least 32 random characters; encrypts stateless HttpOnly seat sessions. */
+  SESSION_SECRET: string;
+  REPORT_ADMIN_ENABLED?: string;
+  REPORT_ADMIN_TOKEN?: string;
 }
 
-// Hub identity verification: fetch + cache the hub's JWKS (1h) so claimSeat can
-// verify the signed identity tokens players present.
-const HUB = 'https://games-hub-5vo.pages.dev';
+// Optional identity verification: no fetch is reachable under default config.
 let _jwks: Jwks | undefined;
 let _jwksAt = 0;
-async function getJwks(): Promise<Jwks> {
+let _jwksUrl: string | undefined;
+async function getJwks(hubUrl: string): Promise<Jwks> {
+  if (_jwksUrl !== hubUrl) { _jwks = undefined; _jwksAt = 0; _jwksUrl = hubUrl; }
   if (!_jwks || Date.now() - _jwksAt > 3_600_000) {
-    _jwks = (await (await fetch(`${HUB}/id/jwks`)).json()) as Jwks;
+    _jwks = (await (await fetch(`${hubUrl}/id/jwks`)).json()) as Jwks;
     _jwksAt = Date.now();
   }
   return _jwks;
@@ -54,8 +66,21 @@ export const onRequest: PagesFunction<Env> = async (ctx) => {
     ? new ResendNotifier({ apiKey: env.RESEND_API_KEY, from: env.MAIL_FROM ?? 'Advanced Civilization <noreply@example.com>' })
     : new NoopNotifier();
   const site = (env.PUBLIC_BASE_URL ?? url.origin).replace(/\/$/, '');
+  let hubUrl: string | undefined;
+  if (env.ENABLE_UPSTREAM_SERVICES === 'true') {
+    if (!env.UPSTREAM_HUB_URL) return new Response(JSON.stringify({ error: 'server configuration error' }), { status: 500, headers: { 'content-type': 'application/json' } });
+    const parsed = new URL(env.UPSTREAM_HUB_URL);
+    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return new Response(JSON.stringify({ error: 'server configuration error' }), { status: 500, headers: { 'content-type': 'application/json' } });
+    hubUrl = parsed.toString().replace(/\/+$/, '');
+  }
 
   const store = new SupabaseStore(supabase);
+  let sessions: SeatSessionCodec;
+  try { sessions = new SeatSessionCodec(env.SESSION_SECRET ?? ''); }
+  catch { return new Response(JSON.stringify({ error: 'server configuration error' }), { status: 500, headers: { 'content-type': 'application/json' } }); }
+  let reportAdmin;
+  try { reportAdmin = reportAdminConfig((key) => env[key as keyof Env]); }
+  catch { return new Response(JSON.stringify({ error: 'server configuration error' }), { status: 500, headers: { 'content-type': 'application/json' } }); }
   const server = new GameServer<GameState, Action, string>({
     snapshotHistory: 20,   // cap per-game snapshot history (framework >=0.32)
     adapter,
@@ -65,29 +90,39 @@ export const onRequest: PagesFunction<Env> = async (ctx) => {
 
     broadcaster: new SupabaseBroadcaster({ supabaseUrl: env.SUPABASE_URL, serviceKey: env.SUPABASE_SERVICE_KEY }),
     notifier,
-    gameUrl: (gameId, token) => `${site}/?game=${encodeURIComponent(gameId)}&token=${encodeURIComponent(token)}`,
+    idGen: secureId,
+    gameUrl: (gameId, token) => `${site}/?game=${encodeURIComponent(gameId)}#invite=${encodeURIComponent(token)}`,
     // Stamp every in-game report with this app's id so triage can isolate our
     // reports on the shared backend.
     appId: APP_ID,
-    // Best-effort games-played counter: createGame fires an 'online' beacon to
-    // the hub. Never affects the request (failures/timeouts are swallowed).
-    playBeacon: { appId: APP_ID },
-    // Ranked play: verify hub identity tokens (claimSeat) + auto-report results
-    // to the leaderboard when the ingest key is configured.
-    verifyIdentity: async (t) => verifyIdentityToken(t, await getJwks()),
-    ...(env.RATINGS_INGEST_KEY
-      ? { ratings: { game: 'advanced-civilization', ingestKey: env.RATINGS_INGEST_KEY } }
+    ...(hubUrl ? {
+      playBeacon: { appId: APP_ID, url: `${hubUrl}/stats/hit` },
+      verifyIdentity: async (t: string) => verifyIdentityToken(t, await getJwks(hubUrl!)),
+    } : {}),
+    ...(hubUrl && env.RATINGS_INGEST_KEY
+      ? { ratings: { game: 'advanced-civilization', ingestKey: env.RATINGS_INGEST_KEY, hubUrl } }
       : {}),
   });
 
   let body: unknown = undefined;
   if (request.method === 'POST') {
-    try { body = await request.json(); } catch { body = {}; }
+    try { body = await readFetchJson(request); }
+    catch (error) {
+      const status = error instanceof RequestInputError ? error.status : 400;
+      const message = error instanceof RequestInputError ? error.message : 'invalid request body';
+      return new Response(JSON.stringify({ error: message }), { status, headers: { 'content-type': 'application/json', 'referrer-policy': 'no-referrer' } });
+    }
   }
 
-  const result = await handleApi(server, request.method, url.pathname, url.searchParams, body, (row) => store.putReport({ ...row, appId: APP_ID }));
+  const result = await handleApi(server, request.method, url.pathname, url.searchParams, body, (row) => store.putReport({ ...row, appId: APP_ID }), {
+    sessions,
+    cookie: request.headers.get('cookie') ?? undefined,
+    secureCookies: true,
+    authorization: request.headers.get('authorization') ?? undefined,
+    reportAdmin,
+  });
   return new Response(JSON.stringify(result.body), {
     status: result.status,
-    headers: { 'content-type': 'application/json', 'access-control-allow-origin': '*' },
+    headers: { 'content-type': 'application/json', 'referrer-policy': 'no-referrer', ...(result.headers ?? {}) },
   });
 };

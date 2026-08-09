@@ -1,29 +1,36 @@
 # Known issues
 
-## Phase 0 blockers
+Status reflects the Phase 1 implementation checkpoint
+`c0ee66fa4b3cddd9b0c3b36647ac718c1be21f26`. Final hosted acceptance is
+recorded separately in `docs/PHASE_1_ACCEPTANCE.md`.
 
-| ID | Status | Issue |
+## Phase 1 blocker disposition
+
+| ID | Status | Disposition / evidence |
 |---|---|---|
-| KI-001 | Resolved | The `skim-eng/advanced-civilization` fork is configured as `origin`; the locked archive branch, protected annotated tag, Phase 0 branch, and pull request 1 are published. |
-| KI-002 | Open | Upstream hub integrations send traffic to `games-hub-5vo.pages.dev` by default. They must be disabled or redirected before staging. |
-| KI-003 | Open | Report-triage list and resolve routes lack administrator authentication and can expose full snapshots. |
-| KI-004 | Open | Fresh Supabase schema lacks the framework's `identities` and `ranked_report` columns, which is expected to break production persistence. |
-| KI-005 | Open | `GameServer.id()` uses `Math.random` for game IDs and bearer seat tokens. |
-| KI-006 | Open | Query-string bearer tokens have no explicit referrer or log-redaction controls. |
-| KI-007 | Open | Seven development dependency vulnerabilities remain intentionally unchanged in the baseline. Production-only audit reports zero. |
+| KI-001 | Resolved in Phase 0 | Fork, archive branch, protected baseline tag, Phase 0 branch, and PR 1 were published. |
+| KI-002 | Resolved | Upstream services are absent by default; browser capture fails on any unexpected external request. |
+| KI-003 | Resolved | Report administration is absent by default and separately authorized/sanitized when explicitly enabled. |
+| KI-004 | Resolved | Ordered migrations and the schema snapshot include framework 0.42 fields; clean PostgreSQL lifecycle passes. |
+| KI-005 | Resolved | Node and Pages inject 256-bit Web Crypto identifiers. |
+| KI-006 | Resolved for Phase 1 | Fragment invitations exchange for encrypted HttpOnly game-scoped sessions; query credentials are rejected; URL/history/referrer/log/console tests pass. Rotation/revocation is not supported. |
+| KI-007 | Resolved | Both `npm audit` and `npm audit --omit=dev` report zero findings after compatibility-tested toolchain updates. |
+| KI-009 | Resolved | Build metadata is ignored output; repeated builds compare 156 deterministic artifacts and leave the worktree clean. |
+| KI-011 | Resolved | Node and Pages enforce a 64 KiB JSON limit, strict shapes, safe errors, revision-aware writes, and duplicate/race rejection. |
+| KI-013 | Resolved | Reporting is disabled with zero new retention; legacy report purge is documented and tested. |
 
-## Baseline quality and operability
+## Remaining limitations and deferred deployment gates
 
-| ID | Status | Issue |
+| ID | Status | Limitation / next gate |
 |---|---|---|
-| KI-008 | Open | The minified UI JavaScript bundle is 831.79 kB (249.61 kB gzip), triggering Vite's 500 kB warning. This is a performance observation, not a Phase 0 failure. |
-| KI-009 | Open | `npm run build:ui` rewrites tracked `dummy-non-existing-folder/version.json` with the current SHA/time. Phase 0 restored the file; the build is not worktree-clean by itself. |
-| KI-010 | Open | TypeScript `build` compiles test files and source maps into `dist`; `dist` is not the Pages artifact, but local server output is larger than necessary. |
-| KI-011 | Open | The Node API and Pages Function do not apply request body-size limits in project code. |
-| KI-012 | Open | With Realtime enabled, `OnlineGame` still polls every 2.5 seconds because it explicitly sets `pollMs: 2500`; service usage has not been measured. |
-| KI-013 | Open | Reports persist independently of games; there is no documented retention/deletion implementation yet. |
-| KI-014 | Open | Phase 0 used bundled Node 24.14.0. No system `node` or `npm` was present on PATH, so npm 11.6.2 was launched through the bundled pnpm runtime. |
+| KI-008 | Open performance observation | The minified UI JavaScript is 1,031.88 kB (295.44 kB gzip) and still triggers Vite's 500 kB warning. Do not mix unrelated optimization into Phase 1. |
+| KI-010 | Open build-quality observation | `npm run build` still emits tests and source maps into local `dist` (154 files, about 2.3 MiB). `dist` is not the Pages artifact. |
+| KI-012 | Must verify before Phase 2 deployment | The client retains a 2.5-second self-healing poll even when optional Realtime is configured. Local polling and the state-free Realtime wire contract pass; hosted service usage/quotas are unmeasured. |
+| KI-014 | Accepted development constraint | This workstation has bundled Node/npm tooling rather than system `node`/`npm`; CI uses pinned Node 24 and ordinary `npm ci`. |
+| KI-015 | Must verify before Phase 2 deployment | PGlite proves PostgreSQL schema/RLS semantics, but does not reproduce Supabase PostgREST or the hosted Realtime service. Repeat browser-role denial and state-free broadcast/refetch against a new owner-controlled environment only after Phase 2 authorization. |
+| KI-016 | Must fix before Phase 2 deployment | Cloudflare Access, production headers/CSP/HSTS/noindex, provider rate limits, custom domain behavior, backup/restore, rollback, and deployed unauthorized-origin checks are not Phase 1 work. |
+| KI-017 | Not run; not a Phase 1 blocker | Physical iPhone Safari, Android Chrome, cross-network, sleep/resume, network-switch, and load/soak testing require devices or deployed infrastructure. The local desktop/manual record is in `docs/MANUAL_MULTIPLAYER_TEST.md`. |
 
-## Not yet tested
-
-Manual browser behavior, multi-context Playwright coverage, real-device behavior, Realtime, polling timing, restart persistence, Cloudflare Access, Supabase RLS in a live project, deployment, load/soak behavior, backups, and rollback are intentionally unverified until their authorized phases.
+No Cloudflare environment or hosted Supabase project exists from Phase 1. No
+claim of deployment readiness is made; these remaining items gate Phase 2
+deployment, not merging the local vanilla multiplayer hardening branch.

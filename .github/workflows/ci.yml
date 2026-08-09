@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Install, test, typecheck, and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Audit complete dependency tree
+        run: npm audit
+
+      - name: Audit production dependency tree
+        run: npm audit --omit=dev
+
+      - name: Run tests
+        run: npm test
+
+      - name: Test schema migrations from zero
+        run: npm run test:schema
+
+      - name: Test row-level security
+        run: npm run test:rls
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build server
+        run: npm run build
+
+      - name: Build UI
+        run: npm run build:ui
+
+      - name: Scan browser artifacts for server-only secrets
+        env:
+          SUPABASE_SERVICE_KEY: ci-service-role-canary-not-a-secret
+          SESSION_SECRET: ci-session-canary-more-than-32-characters
+          REPORT_ADMIN_TOKEN: ci-report-admin-canary-more-than-32-characters
+          RATINGS_INGEST_KEY: ci-ratings-canary-not-a-secret
+          RESEND_API_KEY: ci-resend-canary-not-a-secret
+        run: |
+          npm run build:ui
+          npm run test:secrets
+
+      - name: Verify repeated builds leave a clean worktree
+        run: npm run verify:clean-build
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run isolated multiplayer browser tests
+        run: npm run test:e2e

@@ -1,8 +1,22 @@
-import { defineConfig } from 'vite';
+import { createLogger, defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { versionStamp } from 'digital-boardgame-framework/vite';
 import fs from 'node:fs';
 import path from 'node:path';
+import { redactSensitiveUrlText } from './src/server/log-redaction.ts';
+
+function redactingLogger() {
+  const logger = createLogger();
+  const info = logger.info.bind(logger);
+  const warn = logger.warn.bind(logger);
+  const warnOnce = logger.warnOnce.bind(logger);
+  const error = logger.error.bind(logger);
+  logger.info = (message, options) => info(redactSensitiveUrlText(message), options);
+  logger.warn = (message, options) => warn(redactSensitiveUrlText(message), options);
+  logger.warnOnce = (message, options) => warnOnce(redactSensitiveUrlText(message), options);
+  logger.error = (message, options) => error(redactSensitiveUrlText(message), options);
+  return logger;
+}
 
 // Dev-only: lets the ?dev Territories editor write its export straight back to
 // src/data/territories.json (POST /__save-territories) instead of downloading a
@@ -34,6 +48,7 @@ function devTerritoriesSaver() {
 }
 
 export default defineConfig({
+  customLogger: redactingLogger(),
   // versionStamp injects __DBF_BUILD_ID__ (defaults to the short git SHA) and
   // writes version.json into the build output, so a stale open tab detects a new
   // deploy and shows the "Reload" banner (see UpdateBanner in main.tsx).
