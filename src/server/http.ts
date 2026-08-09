@@ -6,12 +6,14 @@ import { buildGameServer, makeStore } from './game-server.js';
 import { handleApi } from './handlers.js';
 import { APP_ID } from '../report-meta.js';
 import { makeLocalSessionCodec } from './session-node.js';
+import { reportAdminConfig } from './report-admin.js';
 
 const PORT = Number(process.env.PORT ?? 8787);
 
 const server = await buildGameServer();
 const store = await makeStore(); // backs standalone hotseat reports
 const sessions = await makeLocalSessionCodec();
+const reportAdmin = reportAdminConfig((key) => process.env[key]);
 
 function send(res: import('node:http').ServerResponse, code: number, body: unknown, extraHeaders: Record<string, string> = {}) {
   const data = JSON.stringify(body);
@@ -41,6 +43,7 @@ const http = createServer(async (req, res) => {
       cookie: req.headers.cookie,
       secureCookies: false,
       authorization: req.headers.authorization,
+      reportAdmin,
     });
     return send(res, result.status, result.body, result.headers);
   } catch (e) {

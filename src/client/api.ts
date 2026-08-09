@@ -2,7 +2,6 @@
 // `useGame` hook) that talks to the HTTP host in src/server/http.ts, plus an
 // optional Supabase Realtime subscription so clients refresh instantly on a move
 // instead of only polling.
-import { submitReportViaHttp } from 'digital-boardgame-framework/client';
 import { subscribeSupabaseRealtime } from 'digital-boardgame-framework/client/realtime';
 import type { GameClientApi } from 'digital-boardgame-framework/client';
 import type { Action, GameState } from '../engine/index.js';
@@ -25,8 +24,7 @@ export function createCivClient({ baseUrl = '', gameId }: CivClientOpts): GameCl
     fetch: () => fetch(base).then((r) => json<View>(r)),
     submit: (action) => fetch(`${base}/move`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action }) }).then((r) => json<View>(r)),
     legalActions: () => fetch(`${base}/legal`).then((r) => json<Action[]>(r)),
-    // submitReportViaHttp enforces the never-silently-drop report contract.
-    report: (submission) => submitReportViaHttp(`${base}/report`, submission),
+    report: async () => { throw new Error('reporting is disabled'); },
   };
 }
 
@@ -57,68 +55,6 @@ export async function claimSeat(baseUrl: string, gameId: string, identityToken: 
  * credential is carried in a fragment and exchanged immediately for a session. */
 export async function createNetworkGame(baseUrl: string, body: { players: string[]; seed?: number; maxTurns?: number; emails?: Record<string, string>; ai?: Record<string, string>; boardPreset?: string }): Promise<{ gameId: string; invites: Record<string, string> }> {
   return fetch(`${baseUrl}/api/games`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }).then((r) => json<{ gameId: string; invites: Record<string, string> }>(r));
-}
-
-/** A stable per-browser reporter id (localStorage), so a reporter can later see
- *  resolutions of their own reports. */
-export function reporterId(): string {
-  const key = 'civ-reporter-id';
-  try {
-    let v = localStorage.getItem(key);
-    if (!v) { v = `r-${Math.random().toString(36).slice(2, 10)}${Date.now().toString(36)}`; localStorage.setItem(key, v); }
-    return v;
-  } catch { return 'r-anon'; }
-}
-
-/** Submit a standalone bug report (hotseat — no game/token). Tags the message
- *  with the reporter id so the reply is findable. Resolves only on a server-
- *  confirmed reportId (never a silent success). */
-export async function submitStandaloneReport(baseUrl: string, body: {
-  message: string; severity?: string; category?: string;
-  serverSnapshot?: string; reporterSide?: string; turnNumber?: number;
-  clientLog?: { turn: number; kind: string; payload: string; ts: number }[];
-  clientBuild?: string; userAgent?: string;
-}): Promise<{ reportId: string }> {
-  const tagged = { ...body, message: `${body.message}\n\n<!-- reporter:${reporterId()} -->` };
-  const res = await fetch(`${baseUrl}/api/report`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(tagged) });
-  if (!res.ok) throw new Error(`${res.status} ${await res.text()}`);
-  const j = (await res.json()) as { reportId?: string };
-  if (!j.reportId) throw new Error('server did not confirm the report');
-  return { reportId: j.reportId };
-}
-
-/** A resolution may be a plain note string or a { note } object (depending on how
- *  it was recorded); this normalises it to the reply text. */
-export type Resolution = string | { at?: string; note: string } | null | undefined;
-export function resolutionNote(r: Resolution): string {
-  return (typeof r === 'string' ? r : r?.note ?? '').trim();
-}
-export interface MyReport { reportId: string; message: string; severity: string; category?: string; createdAt: string; resolution?: Resolution; tagged?: boolean }
-
-const SEEN_KEY = 'civ-seen-responses';
-function getSeenResponses(): Set<string> {
-  try { return new Set<string>(JSON.parse(localStorage.getItem(SEEN_KEY) || '[]')); } catch { return new Set(); }
-}
-export function markResponseSeen(reportId: string): void {
-  try { const s = getSeenResponses(); s.add(reportId); localStorage.setItem(SEEN_KEY, JSON.stringify([...s])); } catch { /* ignore */ }
-}
-
-/** Resolved reports the reporter hasn't seen yet — to pop on game open. */
-export async function fetchUnseenResponses(baseUrl: string): Promise<MyReport[]> {
-  const seen = getSeenResponses();
-  const reports = await fetchMyReports(baseUrl);
-  // Only auto-pop responses to reports THIS device filed (tagged), with a real
-  // reply written, unseen.
-  return reports.filter((r) => r.tagged && resolutionNote(r.resolution) && !seen.has(r.reportId));
-}
-
-/** Fetch this browser's own reports (with any resolutions). */
-export async function fetchMyReports(baseUrl: string): Promise<MyReport[]> {
-  try {
-    const res = await fetch(`${baseUrl}/api/report?reporter=${encodeURIComponent(reporterId())}`);
-    if (!res.ok) return [];
-    return ((await res.json()) as { reports?: MyReport[] }).reports ?? [];
-  } catch { return []; }
 }
 
 /** Extract a seat's secret token from its invite URL. */

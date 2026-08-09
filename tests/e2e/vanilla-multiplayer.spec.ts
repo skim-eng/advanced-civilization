@@ -117,6 +117,10 @@ test('rejects missing, malformed, and cross-game seat credentials on protected r
   const valid = await authenticatedFetch(request, gameA.gameId);
   expect(valid.status()).toBe(200);
   expect((await valid.json() as { you?: string }).you).toBe('italy');
+  expect((await request.post(`${API_BASE}/api/games/${encodeURIComponent(gameA.gameId)}/report`, { data: { message: 'must stay local' } })).status()).toBe(404);
+  expect((await request.get(`${API_BASE}/api/report`, { params: { reporter: 'foreign' } })).status()).toBe(404);
+  expect((await request.get(`${API_BASE}/api/reports`)).status()).toBe(404);
+  expect((await request.post(`${API_BASE}/api/reports/unknown/resolve`, { data: { note: 'no' } })).status()).toBe(404);
 
   const crossGameRequests = await Promise.all([
     authenticatedFetch(request, gameB.gameId),

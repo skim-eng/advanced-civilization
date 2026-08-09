@@ -25,5 +25,6 @@ The baseline audit found upstream integrations and security boundaries that must
 | Development log hygiene | Redact seat and service credential query values from Vite development log messages, including proxy errors. | None. |
 | Browser test harness | Added Playwright 1.62.1 with isolated seat contexts, external-network blocking, sanitized artifacts, temporary persistence, and API concurrency/authorization coverage. | None. |
 | Multiplayer authentication | Replaced framework-default random IDs and query-string seat tokens in Node/Pages wiring with Web Crypto IDs and a fragment-to-encrypted-HttpOnly-session exchange. | No rules or legal-action effect; only invitation and HTTP authentication transport changes. |
+| Reporting boundary | Disabled player/standalone reporting and automatic crash uploads; removed client reporter-ID lookup; made sanitized legacy triage explicitly opt-in behind a separate server-only bearer. | None; reporting and diagnostics only. |
 
 No Playwright, deployment, service provisioning, rules, map data, graphics, or gameplay change is included in this initial Phase 1 commit.

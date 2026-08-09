@@ -3,11 +3,11 @@
 // Function (functions/api/[[path]].ts, SupabaseStore) build a GameServer and
 // delegate here. Keeping routing in one place is what makes local dev and
 // production true parity — only the store/notifier/broadcaster differ.
-import type { GameServer, ReportSubmission, BugReportRow, ReportFilter } from 'digital-boardgame-framework/server';
+import type { GameServer, BugReportRow, ReportFilter } from 'digital-boardgame-framework/server';
 import { createGame, type Action, type GameState } from '../engine/index.js';
-import { REPORT_CATEGORY } from '../report-meta.js';
 import { isSecureId } from './secure-id.js';
 import type { SeatSessionCodec } from './session.js';
+import { hasReportAdminAuthorization, type ReportAdminConfig } from './report-admin.js';
 // NOTE: import createGame from the engine (node-free), NOT newGameState from
 // game-server.ts — that module top-level-imports FsStore (node:fs), which would
 // break the Cloudflare Workers build of this shared router.
@@ -24,6 +24,7 @@ export interface ApiRequestContext {
   cookie?: string;
   secureCookies?: boolean;
   authorization?: string;
+  reportAdmin?: ReportAdminConfig;
 }
 
 type Server = GameServer<GameState, Action, string>;
@@ -52,69 +53,11 @@ export async function handleApi(
 ): Promise<ApiResult> {
   const segs = pathname.replace(/\/+$/, '').split('/').filter(Boolean);
   if (segs[0] !== 'api') return { status: 404, body: { error: 'not found' } };
+  if (segs[1] === 'health' && segs.length === 2 && method === 'GET') return { status: 200, body: { ok: true } };
 
-  // ---- a reporter's own reports + resolutions (responses inbox) ----
-  if (segs[1] === 'report' && segs.length === 2 && method === 'GET') {
-    const reporter = query.get('reporter');
-    if (!reporter) return { status: 422, body: { error: 'reporter required' } };
-    const marker = `reporter:${reporter}`;
-    try {
-      const all = await server.listReports();
-      const mine = all
-        .filter((r) => {
-          const msg = r.message ?? '';
-          if (msg.includes(marker)) return true;
-          // Legacy reports submitted before reporter-tagging existed: in the
-          // single-reporter hotseat context, surface untagged hotseat reports too.
-          const untagged = !/<!--\s*reporter:/.test(msg);
-          return untagged && r.gameId === 'hotseat' && (r.clientBuild ?? '').includes('web-ui-hotseat');
-        })
-        .map((r) => ({
-          reportId: r.reportId,
-          message: (r.message ?? '').replace(/\s*<!--\s*reporter:[^>]*-->\s*/g, '').trim(),
-          severity: r.severity,
-          category: r.category,
-          createdAt: r.createdAt,
-          resolution: r.resolution ?? null,
-          // tagged = this exact device filed it (safe to auto-pop). Untagged
-          // legacy reports show in the list but are not auto-popped to everyone.
-          tagged: (r.message ?? '').includes(marker),
-        }))
-        .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
-      return { status: 200, body: { reports: mine } };
-    } catch (e) {
-      return { status: 500, body: { error: (e as Error).message } };
-    }
-  }
-
-  // ---- standalone bug report (hotseat — no game) ----
-  if (segs[1] === 'report' && segs.length === 2 && method === 'POST') {
-    if (!putReport) return { status: 501, body: { error: 'reporting is not configured on this host' } };
-    const b = (body ?? {}) as Partial<BugReportRow> & { snapshot?: string };
-    if (typeof b.message !== 'string' || !b.message.trim()) return { status: 422, body: { error: 'message required' } };
-    const reportId = (globalThis.crypto?.randomUUID?.() ?? `r-${Date.now()}-${Math.round(Math.random() * 1e9)}`);
-    const snapshot = b.serverSnapshot ?? b.snapshot ?? '';
-    try {
-      await putReport({
-        reportId,
-        gameId: b.gameId ?? 'hotseat',
-        reporterSide: b.reporterSide ?? '?',
-        turnNumber: b.turnNumber ?? 0,
-        serverSnapshot: snapshot,
-        reporterView: snapshot,
-        clientLog: Array.isArray(b.clientLog) ? b.clientLog : [],
-        message: b.message,
-        severity: b.severity ?? 'bug',
-        category: b.category ?? REPORT_CATEGORY,
-        clientBuild: b.clientBuild,
-        userAgent: b.userAgent,
-        createdAt: new Date().toISOString(),
-      });
-      return { status: 200, body: { reportId } };
-    } catch (e) {
-      return { status: 500, body: { error: (e as Error).message } };
-    }
-  }
+  // Player and standalone reporting are disabled in the vanilla safe default.
+  // In particular, a client-supplied reporter id is never an authorization key.
+  if (segs[1] === 'report') return { status: 404, body: { error: 'reporting disabled' } };
   try {
     // ---- games ----
     if (segs[1] === 'games') {
@@ -187,12 +130,16 @@ export async function handleApi(
       }
       // POST /api/games/:id/report
       if (segs[3] === 'report' && method === 'POST') {
-        return { status: 200, body: await server.report(gameId, token, body as ReportSubmission) };
+        return { status: 404, body: { error: 'reporting disabled' } };
       }
     }
 
-    // ---- reports (public triage, PII-free; see CLAUDE.md trust-tier split) ----
+    // ---- reports (separate server-side administrator boundary) ----
     if (segs[1] === 'reports') {
+      if (!context.reportAdmin) return { status: 404, body: { error: 'not found' } };
+      if (!await hasReportAdminAuthorization(context.authorization, context.reportAdmin)) {
+        return { status: 403, body: { error: 'administrator authorization required' } };
+      }
       if (segs.length === 2 && method === 'GET') {
         // Forward the supported filters so triage can scope by app (category),
         // severity, recency, or game. The shared backend holds several ports'
@@ -205,7 +152,19 @@ export async function handleApi(
         const since = query.get('since'); if (since) filter.since = since;
         const gameId = query.get('gameId'); if (gameId) filter.gameId = gameId;
         const hasFilter = Object.keys(filter).length > 0;
-        return { status: 200, body: await server.listReports(hasFilter ? filter : undefined) };
+        const rows = await server.listReports(hasFilter ? filter : undefined);
+        return { status: 200, body: rows.map((row) => ({
+          reportId: row.reportId,
+          reporterSide: row.reporterSide,
+          turnNumber: row.turnNumber,
+          message: row.message,
+          severity: row.severity,
+          category: row.category,
+          appId: row.appId,
+          clientBuild: row.clientBuild,
+          createdAt: row.createdAt,
+          resolution: row.resolution,
+        })) };
       }
       if (segs[3] === 'resolve' && method === 'POST') {
         await server.resolveReport(segs[2]!, (body as { note?: string })?.note ?? '');

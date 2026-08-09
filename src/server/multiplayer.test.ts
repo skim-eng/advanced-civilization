@@ -20,6 +20,8 @@ function makeServer() {
   });
 }
 const tokenOf = (inviteUrl: string) => new URLSearchParams(new URL(inviteUrl, 'http://x').hash.slice(1)).get('invite')!;
+const REPORT_ADMIN_TOKEN = 'test-admin-credential-with-more-than-thirty-two-characters';
+const reportAdminContext = { reportAdmin: { token: REPORT_ADMIN_TOKEN }, authorization: `Bearer ${REPORT_ADMIN_TOKEN}` };
 
 /** Create a 2-player game and return the server, id, and parsed per-seat invite
  * credentials. Production HTTP exchanges these fragment values for sessions. */
@@ -96,17 +98,27 @@ describe('async multiplayer (GameServer + filesystem store)', () => {
     expect(r.clientLog.length).toBe(1);                   // uploaded game log
   });
 
-  it('GET /api/reports honours the ?category filter (app isolation on the shared queue)', async () => {
+  it('disables player report lookup and gates sanitized report administration', async () => {
     const { s, gameId, egypt, babylon } = await newGame();
-    await s.report(gameId, egypt, { message: 'ours', severity: 'bug', category: 'advciv', clientBuild: 'web-ui', userAgent: 't' });
+    const filed = await s.report(gameId, egypt, { message: 'ours', severity: 'bug', category: 'advciv', clientBuild: 'web-ui', userAgent: 't' });
     await s.report(gameId, babylon, { message: 'other game', severity: 'bug', category: 'other-port', clientBuild: 'web-ui', userAgent: 't' });
     const q = new URLSearchParams({ unresolved: '1', category: 'advciv' });
-    const res = await handleApi(s, 'GET', '/api/reports', q, undefined);
+
+    expect((await handleApi(s, 'GET', '/api/report', new URLSearchParams({ reporter: 'foreign' }), undefined)).status).toBe(404);
+    expect((await handleApi(s, 'GET', '/api/reports', q, undefined)).status).toBe(404);
+    expect((await handleApi(s, 'GET', '/api/reports', q, undefined, undefined, { reportAdmin: { token: REPORT_ADMIN_TOKEN } })).status).toBe(403);
+    expect((await handleApi(s, 'GET', '/api/reports', q, undefined, undefined, { reportAdmin: { token: REPORT_ADMIN_TOKEN }, authorization: `Bearer ${egypt}` })).status).toBe(403);
+
+    const res = await handleApi(s, 'GET', '/api/reports', q, undefined, undefined, reportAdminContext);
     expect(res.status).toBe(200);
-    const rows = res.body as Array<{ message: string; category?: string }>;
+    const rows = res.body as Array<{ message: string; category?: string; serverSnapshot?: string; reporterView?: string; clientLog?: unknown }>;
     expect(rows.length).toBeGreaterThan(0);
     expect(rows.every((r) => r.category === 'advciv')).toBe(true); // pollution from other ports filtered out
     expect(rows.some((r) => r.message === 'ours')).toBe(true);
+    expect(rows.every((r) => r.serverSnapshot === undefined && r.reporterView === undefined && r.clientLog === undefined)).toBe(true);
+
+    expect((await handleApi(s, 'POST', `/api/reports/${filed.reportId}/resolve`, new URLSearchParams(), { note: 'fixed' }, undefined, { reportAdmin: { token: REPORT_ADMIN_TOKEN }, authorization: `Bearer ${egypt}` })).status).toBe(403);
+    expect((await handleApi(s, 'POST', `/api/reports/${filed.reportId}/resolve`, new URLSearchParams(), { note: 'fixed' }, undefined, reportAdminContext)).status).toBe(200);
   });
 
   it('GET /api/reports honours the ?app_id filter (server-stamped, shared-backend isolation)', async () => {
@@ -119,10 +131,10 @@ describe('async multiplayer (GameServer + filesystem store)', () => {
     const { gameId, invites } = await s.createGame({ initialState: createGame({ players: ['egypt', 'babylon'], seed: 5 }), players: ['egypt', 'babylon'] });
     await s.report(gameId, tokenOf(invites.egypt!), { message: 'ours', severity: 'bug' });
 
-    const ours = await handleApi(s, 'GET', '/api/reports', new URLSearchParams({ unresolved: '1', app_id: 'advanced-civilization' }), undefined);
+    const ours = await handleApi(s, 'GET', '/api/reports', new URLSearchParams({ unresolved: '1', app_id: 'advanced-civilization' }), undefined, undefined, reportAdminContext);
     expect((ours.body as Array<{ appId?: string }>).every((r) => r.appId === 'advanced-civilization')).toBe(true);
     expect((ours.body as unknown[]).length).toBe(1);
-    const other = await handleApi(s, 'GET', '/api/reports', new URLSearchParams({ app_id: 'some-other-game' }), undefined);
+    const other = await handleApi(s, 'GET', '/api/reports', new URLSearchParams({ app_id: 'some-other-game' }), undefined, undefined, reportAdminContext);
     expect((other.body as unknown[]).length).toBe(0); // another port's filter sees none of ours
   });
 

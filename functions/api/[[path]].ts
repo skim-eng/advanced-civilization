@@ -12,6 +12,7 @@ import { handleApi } from '../../src/server/handlers.js';
 import { APP_ID } from '../../src/report-meta.js';
 import { secureId } from '../../src/server/secure-id.js';
 import { SeatSessionCodec } from '../../src/server/session.js';
+import { reportAdminConfig } from '../../src/server/report-admin.js';
 
 interface Env {
   SUPABASE_URL: string;
@@ -27,6 +28,8 @@ interface Env {
   UPSTREAM_HUB_URL?: string;
   /** At least 32 random characters; encrypts stateless HttpOnly seat sessions. */
   SESSION_SECRET: string;
+  REPORT_ADMIN_ENABLED?: string;
+  REPORT_ADMIN_TOKEN?: string;
 }
 
 // Optional identity verification: no fetch is reachable under default config.
@@ -74,6 +77,9 @@ export const onRequest: PagesFunction<Env> = async (ctx) => {
   let sessions: SeatSessionCodec;
   try { sessions = new SeatSessionCodec(env.SESSION_SECRET ?? ''); }
   catch { return new Response(JSON.stringify({ error: 'server configuration error' }), { status: 500, headers: { 'content-type': 'application/json' } }); }
+  let reportAdmin;
+  try { reportAdmin = reportAdminConfig((key) => env[key as keyof Env]); }
+  catch { return new Response(JSON.stringify({ error: 'server configuration error' }), { status: 500, headers: { 'content-type': 'application/json' } }); }
   const server = new GameServer<GameState, Action, string>({
     snapshotHistory: 20,   // cap per-game snapshot history (framework >=0.32)
     adapter,
@@ -107,6 +113,7 @@ export const onRequest: PagesFunction<Env> = async (ctx) => {
     cookie: request.headers.get('cookie') ?? undefined,
     secureCookies: true,
     authorization: request.headers.get('authorization') ?? undefined,
+    reportAdmin,
   });
   return new Response(JSON.stringify(result.body), {
     status: result.status,

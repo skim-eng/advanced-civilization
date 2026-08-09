@@ -52,3 +52,10 @@
 - **Decision:** Run the lockfile install, 174-test baseline, typecheck, server build, and UI build on every push and pull request using Node.js 24 on GitHub Actions. Add Playwright only after the untouched local multiplayer baseline has been verified.
 - **Reason:** Phase 1 security and multiplayer work needs a repeatable hosted regression gate before behavior changes begin.
 - **Consequence:** The initial workflow intentionally reproduces the existing command set and does not deploy, provision services, or change gameplay.
+
+## ADR-0008 — Disable player reporting; isolate legacy administration
+
+- **Date:** 2026-08-09
+- **Status:** Accepted and implemented in Phase 1
+- **Decision:** Do not expose framework report submission or device-reporter lookup in vanilla. Render no reporting UI and send no automatic crash data. Keep legacy report list/resolve absent by default; explicit enablement requires a distinct server-side bearer and returns a sanitized metadata-only shape.
+- **Reason:** Framework 0.42 deliberately duplicates full authoritative snapshots into reports, and the existing random client reporter marker is not an authorization boundary. Disabling submission is the least complex secure vanilla default and avoids designing a second private-data store during gameplay validation.

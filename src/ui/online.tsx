@@ -1,14 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useGame } from 'digital-boardgame-framework/client';
 import type { GameClientApi } from 'digital-boardgame-framework/client';
-import type { LogEntry } from 'digital-boardgame-framework';
 import { adapter } from '../engine/index.js';
 import type { Action, GameState, PlayerId } from '../engine/index.js';
 import { civilizations, civById } from '../data/index.js';
 import { availableNations, unavailableReason } from '../engine/boards.js';
-import { createCivClient, createNetworkGame, fetchMyReports, realtimeSubscribe, resolutionNote, type MyReport } from '../client/api.js';
-import { REPORT_CATEGORY } from '../report-meta.js';
-import { ActionList, Board, BoardPicker, CalamityModal, CombatModal, InfoView, MovementControls, ReportModal, StatusPanel, effectiveBoardPreset, legalAreas, nationFocusArea, prettyPhase, scrollBoardTo, useMovementPlanner, type View } from './App.js';
+import { createCivClient, createNetworkGame, realtimeSubscribe } from '../client/api.js';
+import { ActionList, Board, BoardPicker, CalamityModal, CombatModal, InfoView, MovementControls, StatusPanel, effectiveBoardPreset, legalAreas, nationFocusArea, prettyPhase, scrollBoardTo, useMovementPlanner, type View } from './App.js';
 
 const API = ''; // same-origin; Vite proxies /api -> the GameServer host
 // Placeholder so the movement-planner hook can run before the game view loads.
@@ -188,32 +186,8 @@ export function OnlineGame({ gameId }: { gameId: string }) {
           <div style={{ textAlign: 'center', fontWeight: 800, letterSpacing: 1 }}>{prettyPhase(s.phase).toUpperCase()}</div>
           <div className="civ-lbl">Turn {s.turn} · you are <b style={{ color: civById.get(you)?.color }}>{civById.get(you)?.name}</b></div>
           <button className="civ-btn" onClick={() => downloadLog(s, gameId)}>Download game log</button>
-          <BugReport client={client} view={s} />
         </div>
       </div>
-    </>
-  );
-}
-
-// ---- Bug reporting + log upload -------------------------------------------
-
-function BugReport({ client, view }: { client: GameClientApi<GameState, Action>; view: GameState }) {
-  const [open, setOpen] = useState(false);
-  const [mine, setMine] = useState<MyReport[]>([]);
-  const refreshMine = useCallback(() => { fetchMyReports(API).then(setMine).catch(() => {}); }, []);
-  useEffect(() => { refreshMine(); }, [refreshMine]);
-  const answered = mine.filter((r) => resolutionNote(r.resolution));
-  const send = async (message: string, severity: string) => {
-    // Attach the game's move log; the server stores the full snapshot too.
-    const clientLog: LogEntry[] = view.log.map((m, i) => ({ turn: view.turn, kind: 'log', payload: typeof m === 'string' ? m : m.msg ?? m.kind, ts: i }));
-    const { reportId } = await client.report({ message, severity, category: REPORT_CATEGORY, clientLog, clientBuild: 'web-ui', userAgent: navigator.userAgent } as never);
-    setTimeout(refreshMine, 500);
-    return reportId as string;
-  };
-  return (
-    <>
-      <button className="civ-btn" onClick={() => { refreshMine(); setOpen(true); }}>Report a problem{answered.length ? ` (${answered.length} ✓)` : ''}</button>
-      {open && <ReportModal mine={mine} onSend={send} onClose={() => setOpen(false)} />}
     </>
   );
 }

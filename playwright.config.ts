@@ -27,7 +27,7 @@ export default defineConfig({
   webServer: [
     {
       command: 'npm run serve',
-      url: 'http://127.0.0.1:8787/api/report?reporter=playwright-health',
+      url: 'http://127.0.0.1:8787/api/health',
       timeout: 60_000,
       reuseExistingServer: false,
     },
