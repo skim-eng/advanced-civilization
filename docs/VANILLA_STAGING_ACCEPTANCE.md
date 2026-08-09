@@ -18,6 +18,7 @@ made and this disposition must not be weakened to a conditional pass.
 
 | Resource | Identifier / result |
 |---|---|
+| Access investigation base | `a6f5f04b9437bf014ce21663a38b3e3131def9ed` |
 | Supabase project | `csbcmaiytgotctodxahz`, `us-east-1`, Free |
 | Migration | `202608090001_phase1_schema.sql`; SHA-256 `78c377bbde6417871177833aec31cb8fdefb7df86e9c3873f1f4af13a46801c2` |
 | Cloudflare Pages project | `kimsvideo-civ-vanilla`; production branch `codex/phase2-vanilla-staging` |
@@ -52,6 +53,11 @@ made and this disposition must not be weakened to a conditional pass.
   deploy-only asset.
 - Phase 2 CI now compiles the Pages Functions with pinned Wrangler 4.120.0 and
   rejects a static-only deployment bundle before Playwright.
+- Official Cloudflare documentation requires payment details even for Zero
+  Trust Free. The owner account has no active Access entitlement; its checkout
+  requires recurring overage-charge authorization, and its only visible spend
+  control is an informational `$10` budget alert rather than a hard cap. No
+  checkbox was selected, no terms were accepted, and nothing was deployed.
 
 ## Clean source gate
 
@@ -97,7 +103,7 @@ hosted cleanup are not yet claimed here.
 
 | ID | Severity | Evidence | Required remediation | Acceptance test | Disposition |
 |---|---|---|---|---|---|
-| P2-B001 | Critical deployment gate | Zero Trust Free checkout states `$0/month` but requires authorizing charges to the stored card for usage beyond included allowances | Owner explicitly approves that authorization, or supplies a charge-free Access-equivalent path | Access protects the Pages hostname and `/api/*`; unauthenticated browser/raw clients denied and authorized clients pass | MUST_FIX_BEFORE_PHASE_2_DEPLOYMENT |
+| P2-B001 | Critical deployment gate | [Official setup docs](https://developers.cloudflare.com/cloudflare-one/setup/) require payment details even for Free; the account has no active entitlement; checkout requires monthly overage-charge authorization; [official billing guidance](https://developers.cloudflare.com/changelog/product/billing/) says budget alerts do not cap usage | Owner explicitly approves that authorization, or supplies an already-active official Access entitlement with enforceable zero-dollar charge prevention | Access protects the Pages hostname and `/api/*`; unauthenticated browser/raw clients denied and authorized clients pass, with no open-ended billing authorization | MUST_FIX_BEFORE_PHASE_2_DEPLOYMENT |
 | P2-B002 | Informational conditional feature | Cloudflare domain inventory reports zero domains/subdomains | No action in this account; configure the custom domain later only after an owner-controlled zone exists without purchase or unrelated DNS change | Zone/TLS/DNS and full retest if ever configured | ACCEPTED_DEVELOPMENT_RISK |
 | P2-B003 | Critical acceptance dependency | No public deployment exists because P2-B001 is unresolved | After Access is ready, deploy exact green SHA and complete the full hosted/security/soak/rollback/cleanup matrix | All rows P2-08 through P2-17 in `PHASE_2_PLAN.md` pass | MUST_FIX_BEFORE_PHASE_2_DEPLOYMENT |
 

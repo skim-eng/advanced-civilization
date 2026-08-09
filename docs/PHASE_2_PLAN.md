@@ -35,7 +35,7 @@ accepted risk merely to finish the phase.
 | P2-05 hosted schema and RLS | Expected tables/columns/indexes/RLS; no public policies; anon/authenticated PostgREST CRUD denial; server-only service lifecycle and targeted cleanup | PASS — all four tables/catalogs correct; anon 401, authenticated 403, service lifecycle 201/200/204, zero rows after cleanup |
 | P2-06 hosted Realtime | Actual hosted channel emits state-free refresh signals only; unauthorized direct table/state access denied; polling fallback remains functional | PARTIAL — hosted provider delivered `{turn}` and `{}` only and no `dbf_*` table is published; end-to-end deployed refresh/polling remains pending |
 | P2-07 Cloudflare infrastructure | Owner Pages project builds `dist-ui` plus `functions/`; deployment SHA/ID and encrypted secret names recorded; upstream/report/analytics/email integrations off | PARTIAL — project `kimsvideo-civ-vanilla` exists with zero deployments, encrypted secrets, fail-closed Functions, and a successful local Wrangler Functions build |
-| P2-08 Cloudflare Access | Entire Pages hostname and `/api/*` deny unauthenticated browser and raw HTTP; authorized owner/test access works | BLOCKED — Zero Trust Free is `$0/month`, but activation requires accepting card charges for usage above free limits; no consent was given and no deployment was made |
+| P2-08 Cloudflare Access | Entire Pages hostname and `/api/*` deny unauthenticated browser and raw HTTP; authorized owner/test access works | BLOCKED — official docs require payment details even for Free; the account has no existing Access entitlement; checkout requires recurring overage-charge authorization; budget alerts are informational and no hard spending cap was found; no consent was given and no deployment was made |
 | P2-09 private Pages URL | SPA and Function health, headers, invitation/referrer, API, persistence, Realtime/polling, and multiplayer matrix pass | PENDING |
 | P2-10 custom domain | Existing zone only; DNS/TLS active, `PUBLIC_BASE_URL` updated, redeployed, and P2-08/P2-09 repeated; otherwise exact blocker recorded | NOT APPLICABLE — this Cloudflare account reports zero domains/subdomains, so no `kimsvideo.org` zone or DNS record is available and no DNS was changed |
 | P2-11 artifact and IP boundary | Built assets/source maps contain no canary/secret/server-only variable/upstream credential/invitation/private fixture; manifest has no VASSAL module, extracted art, OCR rules PDF, or deploy-only proprietary asset | PARTIAL — local browser/Functions manifest passes; repeat at final deployment SHA after provider build |
@@ -45,6 +45,24 @@ accepted risk merely to finish the phase.
 | P2-15 cleanup and rollback | Targeted test-data cleanup; Pages rollback rehearsed; Supabase backup/restore or plan-appropriate rollback documented and exercised to the safe extent supported | PARTIAL — provider fixtures were deleted and schema recovery was rehearsed from the canonical migration; free-plan data restore and Pages rollback remain unclaimed |
 | P2-16 records and disposition | Architecture, deployment, decisions, security, issues, deviations, migrations, multiplayer/manual records, and `VANILLA_STAGING_ACCEPTANCE.md` complete with PASS/CONDITIONAL PASS/FAIL | PENDING |
 | P2-17 PR/merge gate | Phase 2 PR exact head green and staging revalidated at that head; merge only for PASS, then record/revalidate merge SHA | PENDING |
+
+## Cloudflare Access blocker investigation
+
+Read-only official documentation and owner-account UI evidence on 2026-08-09,
+with repository and PR #3 at exact HEAD
+`a6f5f04b9437bf014ce21663a38b3e3131def9ed`:
+
+| Required condition | Official/account evidence | Result |
+|---|---|---|
+| Truly `$0` plan | [Zero Trust pricing](https://www.cloudflare.com/plans/zero-trust-services/) advertises `$0 forever` and a 50-user limit; checkout says `$0/month` | PASS only within included limits |
+| No open-ended card authorization | [Zero Trust setup](https://developers.cloudflare.com/cloudflare-one/setup/) requires payment details even for Free; checkout requires authorization to charge monthly overages until cancellation | FAIL |
+| No possible usage/overage charge | Billing exposes a `$10` auto-created alert, while Cloudflare's [billing changelog](https://developers.cloudflare.com/changelog/product/billing/) says alerts are informational and do not cap usage | FAIL |
+| Private before deployment | Access can provide the required control, but this account has no active entitlement and redirects to onboarding | BLOCKED |
+
+No official no-card activation, zero-dollar hard cap, automatic shutdown at the
+free allowance, account-level charge prevention, or already-active charge-free
+Access entitlement was found. Do not replace Access with application-level
+Basic Auth or deploy while this gate is unresolved.
 
 ## Secret handling
 

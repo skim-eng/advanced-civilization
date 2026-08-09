@@ -13,6 +13,34 @@ for usage above included limits. That authorization was not granted. Do not
 deploy until the owner explicitly accepts that condition or supplies a
 charge-free alternative.
 
+### Access billing investigation
+
+Read-only reinspection on 2026-08-09 found no compliant no-card or hard-cap
+path in the current account:
+
+- Cloudflare's [Zero Trust setup documentation](https://developers.cloudflare.com/cloudflare-one/setup/)
+  says payment details are required even for Zero Trust Free.
+- Cloudflare's [current Zero Trust pricing](https://www.cloudflare.com/plans/zero-trust-services/)
+  advertises Free as `$0 forever` with a 50-user limit.
+- The owner account has no active Zero Trust subscription or dormant Access
+  entitlement. Opening Access redirects to plan onboarding.
+- The account checkout says `$0/month` and `Protect up to 50 users at no cost`,
+  but also says additional usage beyond the included allowance is billed
+  monthly. Activation requires a separate checkbox authorizing Cloudflare to
+  charge the stored payment method for usage exceeding free limits each month
+  until cancellation.
+- The Billing UI exposes monitoring and budget alerts, not a zero-dollar hard
+  cap. Its auto-created alert is `$10`. Cloudflare's [official billing
+  changelog](https://developers.cloudflare.com/changelog/product/billing/)
+  states that budget alerts are informational only and do not cap usage or
+  affect the account.
+
+Therefore the nominally free plan satisfies the price and 50-user requirements
+only after accepting an open-ended overage authorization. No checkout control,
+account-level billing control, official no-card route, or enforceable zero-dollar
+spending cap was found. Application Basic Auth is not an Access equivalent and
+must not be substituted.
+
 The selected Cloudflare account currently reports zero domains or subdomains,
 so it does not contain the `kimsvideo.org` zone. The conditional custom-domain
 step is therefore not applicable and no DNS record was changed.
