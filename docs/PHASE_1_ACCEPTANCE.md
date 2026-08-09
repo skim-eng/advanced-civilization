@@ -4,31 +4,33 @@ Branch: `test/vanilla-multiplayer`
 Phase 0 merge: `31fad73503d91f8d4b8b5210e537cbd24ad81975`  
 Local implementation checkpoint:
 `c0ee66fa4b3cddd9b0c3b36647ac718c1be21f26`
+Hosted acceptance checkpoint:
+`26fd1579299727f35b0c141abc1e767b6acd2dae`
 
 ## Current decision
 
-**CONDITIONAL PASS pending final branch publication and a green GitHub Actions
-run for the published Phase 1 HEAD.**
+**PASS.**
 
-All `MUST_FIX_BEFORE_PHASE_1_COMPLETION` implementation and local acceptance
-tests pass. The condition cannot be removed until the exact final branch HEAD
-completes the hosted workflow. Phase 1 is not merged, and Phase 2 has not begun.
+All `MUST_FIX_BEFORE_PHASE_1_COMPLETION` implementation and acceptance tests
+pass locally and in GitHub Actions. Push run `31319036345` and PR run
+`31319141052` both succeeded against the hosted acceptance checkpoint. Phase 1
+is not merged, and Phase 2 has not begun.
 
 ## Blocker disposition
 
 | Issue | Original severity | Implementation | Acceptance test | Disposition |
 |---|---|---|---|---|
-| SEC-001 / KI-002 | High | `447d92c` | Default browser/server capture: zero unexpected egress | LOCAL PASS; HOSTED PENDING |
-| SEC-002 / KI-003 | Critical | `132d5d8` | Disabled/anonymous/player/bad-admin/valid-admin matrix | LOCAL PASS; HOSTED PENDING |
-| SEC-003 / KI-004 | Critical availability | `fd9f15a` | From-zero schema and full persistent lifecycle | LOCAL PASS; HOSTED PENDING |
-| SEC-003-RLS | Critical confidentiality | `fd9f15a`, `171b839` | Browser-role CRUD denial, server lifecycle, artifact scan, state-free Realtime payload | LOCAL PASS; HOSTED PENDING |
-| SEC-004 / SEC-005 / KI-005 / KI-006 | Critical/High | `56e6a41`, `c0ee66f` | Crypto IDs; invalid/cross-game; fragment/cookie; refresh/reconnect/restart; URL/history/referrer/log/console/artifact | LOCAL PASS; HOSTED PENDING |
-| SEC-013 | High | `171b839`, `c0ee66f` | Canonical role matrix and raw 2/4/6 API responses | LOCAL PASS; HOSTED PENDING |
-| SEC-010 | Medium | `132d5d8` | No reporter identity/lookup/UI; foreign identifier denied | LOCAL PASS; HOSTED PENDING |
-| SEC-011 / KI-011 | Medium/High | `c2f2cae` | Bounded malformed/stale/duplicate/race/wrong-seat/failure matrix | LOCAL PASS; HOSTED PENDING |
-| SEC-007 / KI-013 | High | `132d5d8`, `fd9f15a` | Reporting sends/stores zero; admin sanitized; legacy purge | LOCAL PASS; HOSTED PENDING |
-| SEC-008 / KI-007 | High development exposure | `a33fccb` | Locked install; both audits zero; unit/type/build/UI/browser | LOCAL PASS; HOSTED PENDING |
-| KI-009 | Reliability | `ef16365` | Repeat 156-artifact comparison and clean Git state | LOCAL PASS; HOSTED PENDING |
+| SEC-001 / KI-002 | High | `447d92c` | Default browser/server capture: zero unexpected egress | PASS |
+| SEC-002 / KI-003 | Critical | `132d5d8` | Disabled/anonymous/player/bad-admin/valid-admin matrix | PASS |
+| SEC-003 / KI-004 | Critical availability | `fd9f15a` | From-zero schema and full persistent lifecycle | PASS |
+| SEC-003-RLS | Critical confidentiality | `fd9f15a`, `171b839` | Browser-role CRUD denial, server lifecycle, artifact scan, state-free Realtime payload | PASS |
+| SEC-004 / SEC-005 / KI-005 / KI-006 | Critical/High | `56e6a41`, `c0ee66f` | Crypto IDs; invalid/cross-game; fragment/cookie; refresh/reconnect/restart; URL/history/referrer/log/console/artifact | PASS |
+| SEC-013 | High | `171b839`, `c0ee66f` | Canonical role matrix and raw 2/4/6 API responses | PASS |
+| SEC-010 | Medium | `132d5d8` | No reporter identity/lookup/UI; foreign identifier denied | PASS |
+| SEC-011 / KI-011 | Medium/High | `c2f2cae` | Bounded malformed/stale/duplicate/race/wrong-seat/failure matrix | PASS |
+| SEC-007 / KI-013 | High | `132d5d8`, `fd9f15a` | Reporting sends/stores zero; admin sanitized; legacy purge | PASS |
+| SEC-008 / KI-007 | High development exposure | `a33fccb` | Locked install; both audits zero; unit/type/build/UI/browser | PASS |
+| KI-009 | Reliability | `ef16365` | Repeat 156-artifact comparison and clean Git state | PASS |
 
 No item classified `MUST_FIX_BEFORE_PHASE_1_COMPLETION` was converted to an
 accepted risk. Remaining deployment-only controls are listed below.
@@ -80,6 +82,6 @@ non-deployment observations. None permits deployment from Phase 1.
 
 ## Merge recommendation
 
-Do not merge until the final hosted condition is removed. After a green Actions
-run for the exact published HEAD, Phase 1 may be recommended ready to merge, but
-must still be merged only by explicit owner action.
+Phase 1 is ready to merge from a security/reliability acceptance perspective.
+Do not merge automatically; merge only by explicit owner action. Passing Phase
+1 does not authorize Phase 2 provisioning or deployment.

@@ -83,8 +83,12 @@ print invitation URLs, game IDs, credentials, private hands, or full snapshots.
   `31315830155`: 176 unit tests and 3 browser/API tests passed.
 - Published checkpoint `8689ec4b4ad26813e451be6df4bb45d683c8101d`, run
   `31315912882`: green intermediate checkpoint.
-- Final Phase 1 HEAD: pending publication and hosted CI; intermediate runs are
-  not acceptance.
+- Hosted acceptance checkpoint
+  `26fd1579299727f35b0c141abc1e767b6acd2dae`: push run `31319036345` and PR run
+  `31319141052` both passed. Each clean Ubuntu/Node 24 job completed the locked
+  install, both audits, 199 source tests, schema/RLS tests, typecheck, both
+  builds, browser-secret scan, repeat clean-build proof, Chromium install, and
+  6 Playwright tests.
 
 ## Manual and deferred evidence
 
