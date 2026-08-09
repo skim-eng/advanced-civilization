@@ -40,6 +40,7 @@ Severity describes risk to the planned private staging deployment, not a claim a
 - **Evidence:** invitations and every authenticated API request use `?token=...`.
 - **Impact:** Tokens cross the address bar, browser history, copied links, server/CDN request metadata, screenshots, and potentially referrers. They may be exposed through support artifacts even when application logs are quiet.
 - **Required action:** Before staging, add `Referrer-Policy: no-referrer`, redact tokens from logs/errors/screenshots, avoid third-party subresources, and test browser artifacts. Long term, exchange an invite token for an HttpOnly, Secure, SameSite session and remove the token from the visible URL.
+- **Phase 1 evidence:** Stopping the local API while Vite was polling caused the baseline proxy logger to print the complete token-bearing request URL. The temporary game store was deleted immediately. Phase 1 now redacts sensitive query values through Vite's custom logger; query-string removal, browser artifacts, referrers, and non-Vite logs remain open.
 
 ### SEC-006 — Missing deployment security headers and indexing controls
 
