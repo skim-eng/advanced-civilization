@@ -43,3 +43,11 @@
 - **Status:** Accepted for Phase 2
 - **Decision:** Use Cloudflare Pages, Pages Functions, Supabase persistence, optional Supabase Realtime, and optional Resend. Do not migrate vanilla staging to an unrelated framework or provider.
 - **Reason:** The upstream project already supports this path, reducing gameplay risk during baseline validation.
+
+## ADR-0007 — Establish GitHub Actions validation before Phase 1 behavior work
+
+- **Date:** 2026-08-09
+- **Status:** Accepted
+- **Decision:** Run the lockfile install, 174-test baseline, typecheck, server build, and UI build on every push and pull request using Node.js 24 on GitHub Actions. Add Playwright only after the untouched local multiplayer baseline has been verified.
+- **Reason:** Phase 1 security and multiplayer work needs a repeatable hosted regression gate before behavior changes begin.
+- **Consequence:** The initial workflow intentionally reproduces the existing command set and does not deploy, provision services, or change gameplay.

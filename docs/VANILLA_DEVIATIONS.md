@@ -16,3 +16,11 @@ The build-generated change to `dummy-non-existing-folder/version.json` was resto
 ## Required before staging, not yet implemented
 
 The baseline audit found upstream integrations and security boundaries that must be disabled, feature-flagged, or repaired before a private staging deployment. Those future changes are listed in `docs/SECURITY_NOTES.md` and must be added here when implemented. They are not silently treated as completed Phase 0 work.
+
+## Phase 1
+
+| Area | Change | Gameplay effect |
+|---|---|---|
+| Continuous integration | Added a GitHub Actions workflow that runs `npm ci`, `npm test`, `npm run typecheck`, `npm run build`, and `npm run build:ui` on pushes and pull requests with Node.js 24. | None. |
+
+No Playwright, deployment, service provisioning, rules, map data, graphics, or gameplay change is included in this initial Phase 1 commit.

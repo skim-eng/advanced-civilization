@@ -1,6 +1,6 @@
 # Project Chronicle roadmap
 
-Only Phase 0 is active. Phases 1–2 require sequential owner acceptance. Phases 3–14 are product and engineering direction only; they are not authorization to implement.
+Phase 0 is merged at `31fad73503d91f8d4b8b5210e537cbd24ad81975`. Phase 1 is active on `test/vanilla-multiplayer` with owner approval in principle. Phase 2 remains unauthorized. Phases 3–14 are product and engineering direction only; they are not authorization to implement.
 
 ## Phase 0 — Preserve and audit the vanilla baseline
 
