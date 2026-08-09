@@ -8,6 +8,7 @@ import { createGame, type Action, type GameState } from '../engine/index.js';
 import { isSecureId } from './secure-id.js';
 import type { SeatSessionCodec } from './session.js';
 import { hasReportAdminAuthorization, type ReportAdminConfig } from './report-admin.js';
+import { RequestInputError, validateClaimBody, validateCreateGameBody, validateInviteBody, validateMessageBody, validateMoveBody, validateResolutionBody } from './request-input.js';
 // NOTE: import createGame from the engine (node-free), NOT newGameState from
 // game-server.ts — that module top-level-imports FsStore (node:fs), which would
 // break the Cloudflare Workers build of this shared router.
@@ -30,13 +31,15 @@ export interface ApiRequestContext {
 type Server = GameServer<GameState, Action, string>;
 
 // Map known framework error strings to HTTP status codes.
-function errToStatus(message: string): number {
-  if (message.includes('not found') || message.includes('No snapshot')) return 404;
-  if (message.includes('Invalid token')) return 401;
-  if (message.includes('Not your turn')) return 403;
-  if (message.includes('Illegal action')) return 422;
-  if (message.includes('already exists')) return 409; // concurrent write
-  return 400;
+function safeFailure(error: unknown): ApiResult {
+  if (error instanceof RequestInputError) return { status: error.status, body: { error: error.message } };
+  const message = error instanceof Error ? error.message : (error && typeof error === 'object' && typeof (error as { message?: unknown }).message === 'string' ? (error as { message: string }).message : '');
+  if (message.includes('not found') || message.includes('No snapshot')) return { status: 404, body: { error: 'not found' } };
+  if (message.includes('Invalid token')) return { status: 401, body: { error: 'authentication failed' } };
+  if (message.includes('Not your turn')) return { status: 403, body: { error: 'not your turn' } };
+  if (message.includes('Illegal action')) return { status: 422, body: { error: 'action rejected' } };
+  if (message.includes('already exists') || message.includes('Conflict')) return { status: 409, body: { error: 'stale or duplicate request' } };
+  return { status: 503, body: { error: 'request could not be completed' } };
 }
 
 /** Route one request. `putReport` (when provided) backs the standalone
@@ -63,17 +66,14 @@ export async function handleApi(
     if (segs[1] === 'games') {
       // POST /api/games  { players, seed?, maxTurns?, emails?, boardPreset? }
       if (segs.length === 2 && method === 'POST') {
-        const b = (body ?? {}) as { players?: string[]; seed?: number; maxTurns?: number; emails?: Record<string, string>; ai?: Record<string, string>; boardPreset?: string };
-        if (!Array.isArray(b.players) || b.players.length < 2 || b.players.length > 6) {
-          return { status: 422, body: { error: 'players must be an array of 2-6 nation ids' } };
-        }
+        const b = validateCreateGameBody(body);
         let initialState: GameState;
         try {
           initialState = newGameState({ players: b.players, seed: b.seed, maxTurns: b.maxTurns, boardPreset: b.boardPreset });
         } catch (e) {
           // A rules-§16 setup problem (unknown preset / nation not available on
           // the board) is the caller's error, not a server fault.
-          return { status: 422, body: { error: (e as Error).message } };
+          return { status: 422, body: { error: 'invalid game configuration' } };
         }
         return { status: 200, body: await server.createGame({ initialState, players: b.players, emails: b.emails, ...(b.ai ? { ai: b.ai } : {}) }) };
       }
@@ -87,8 +87,7 @@ export async function handleApi(
       // replaced by an encrypted, scoped HttpOnly cookie.
       if (segs[3] === 'session' && segs.length === 4 && method === 'POST') {
         if (!context.sessions) return { status: 503, body: { error: 'sessions are not configured' } };
-        const inviteToken = (body as { inviteToken?: unknown } | undefined)?.inviteToken;
-        if (!isSecureId(inviteToken)) return { status: 401, body: { error: 'invalid invitation' } };
+        const inviteToken = validateInviteBody(body);
         const view = await server.fetch(gameId, inviteToken);
         const cookie = await context.sessions.setCookie(gameId, inviteToken, context.secureCookies ?? false);
         return { status: 200, body: { ok: true, you: view.you }, headers: { 'set-cookie': cookie } };
@@ -108,25 +107,21 @@ export async function handleApi(
       // POST /api/games/:id/claim { identityToken } — optional owner-controlled
       // identity attribution, gated by the same seat session as every game route.
       if (segs[3] === 'claim' && method === 'POST') {
-        const idTok = (body as { identityToken?: unknown })?.identityToken;
-        if (typeof idTok !== 'string' || !idTok) return { status: 422, body: { error: 'identityToken required' } };
+        const idTok = validateClaimBody(body);
         const v = await server.claimSeat(gameId, token, idTok);
         return { status: 200, body: { ok: true, playerId: v.playerId } };
       }
       // POST /api/games/:id/move  { action, identityToken? }
       if (segs[3] === 'move' && method === 'POST') {
-        const b = (body ?? {}) as { action: Action; identityToken?: unknown };
-        // Ranked: best-effort attribute this seat from the move's identity
-        // (idempotent, race-free — turns are sequential). Never blocks the move.
-        if (typeof b.identityToken === 'string' && b.identityToken) {
-          try { await server.claimSeat(gameId, token, b.identityToken); } catch { /* optional */ }
-        }
+        const b = validateMoveBody(body);
+        const current = await server.fetch(gameId, token);
+        if (current.turn !== b.expectedTurn) return { status: 409, body: { error: 'stale or duplicate request' } };
         return { status: 200, body: await server.submit(gameId, token, b.action) };
       }
       // GET/POST /api/games/:id/messages
       if (segs[3] === 'messages') {
         if (method === 'GET') return { status: 200, body: await server.listMessages(gameId, token) };
-        if (method === 'POST') return { status: 200, body: await server.postMessage(gameId, token, (body as { body: string }).body) };
+        if (method === 'POST') return { status: 200, body: await server.postMessage(gameId, token, validateMessageBody(body)) };
       }
       // POST /api/games/:id/report
       if (segs[3] === 'report' && method === 'POST') {
@@ -167,19 +162,13 @@ export async function handleApi(
         })) };
       }
       if (segs[3] === 'resolve' && method === 'POST') {
-        await server.resolveReport(segs[2]!, (body as { note?: string })?.note ?? '');
+        await server.resolveReport(segs[2]!, validateResolutionBody(body));
         return { status: 200, body: { ok: true } };
       }
     }
 
     return { status: 404, body: { error: 'no route', pathname, method } };
   } catch (e) {
-    // Supabase/PostgREST throw a plain object ({ message, ... }); String(e) on
-    // that is "[object Object]". Pull .message when present.
-    const message =
-      e instanceof Error ? e.message
-      : e && typeof e === 'object' ? ((e as { message?: string }).message ?? JSON.stringify(e))
-      : String(e);
-    return { status: errToStatus(message), body: { error: message } };
+    return safeFailure(e);
   }
 }

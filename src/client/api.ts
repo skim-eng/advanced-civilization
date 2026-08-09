@@ -20,9 +20,23 @@ type View = { view: GameState; yourTurn: boolean; turn: number; gameOver: boolea
 /** A GameClientApi bound to one game + its scoped HttpOnly session. */
 export function createCivClient({ baseUrl = '', gameId }: CivClientOpts): GameClientApi<GameState, Action> {
   const base = `${baseUrl}/api/games/${encodeURIComponent(gameId)}`;
+  let knownTurn: number | undefined;
+  const readView = async (response: Response): Promise<View> => {
+    const view = await json<View>(response);
+    knownTurn = view.turn;
+    return view;
+  };
   return {
-    fetch: () => fetch(base).then((r) => json<View>(r)),
-    submit: (action) => fetch(`${base}/move`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action }) }).then((r) => json<View>(r)),
+    fetch: () => fetch(base).then(readView),
+    submit: async (action) => {
+      if (knownTurn === undefined) throw new Error('game revision is not loaded');
+      const response = await fetch(`${base}/move`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action, expectedTurn: knownTurn, requestId: globalThis.crypto.randomUUID() }),
+      });
+      return readView(response);
+    },
     legalActions: () => fetch(`${base}/legal`).then((r) => json<Action[]>(r)),
     report: async () => { throw new Error('reporting is disabled'); },
   };

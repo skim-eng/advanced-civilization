@@ -13,6 +13,7 @@ import { APP_ID } from '../../src/report-meta.js';
 import { secureId } from '../../src/server/secure-id.js';
 import { SeatSessionCodec } from '../../src/server/session.js';
 import { reportAdminConfig } from '../../src/server/report-admin.js';
+import { readFetchJson, RequestInputError } from '../../src/server/request-input.js';
 
 interface Env {
   SUPABASE_URL: string;
@@ -105,7 +106,12 @@ export const onRequest: PagesFunction<Env> = async (ctx) => {
 
   let body: unknown = undefined;
   if (request.method === 'POST') {
-    try { body = await request.json(); } catch { body = {}; }
+    try { body = await readFetchJson(request); }
+    catch (error) {
+      const status = error instanceof RequestInputError ? error.status : 400;
+      const message = error instanceof RequestInputError ? error.message : 'invalid request body';
+      return new Response(JSON.stringify({ error: message }), { status, headers: { 'content-type': 'application/json', 'referrer-policy': 'no-referrer' } });
+    }
   }
 
   const result = await handleApi(server, request.method, url.pathname, url.searchParams, body, (row) => store.putReport({ ...row, appId: APP_ID }), {

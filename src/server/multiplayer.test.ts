@@ -10,6 +10,7 @@ import type { Action, GameState, PlayerId } from '../engine/index.js';
 import { HeuristicAI } from '../ai/heuristic.js';
 import { handleApi } from './handlers.js';
 import { secureId } from './secure-id.js';
+import { SeatSessionCodec } from './session.js';
 
 function makeServer() {
   const store = new FsStore(mkdtempSync(join(tmpdir(), 'civ-mp-')));
@@ -149,5 +150,30 @@ describe('async multiplayer (GameServer + filesystem store)', () => {
     const onClock = (await s.fetch(gameId, egypt)).yourTurn ? egypt : babylon;
     await s.submit(gameId, onClock, { type: 'pass' });
     expect((await s.fetch(gameId, egypt)).turn).toBeGreaterThanOrEqual(t0);
+  });
+
+  it('returns a sanitized persistence failure and preserves the last committed turn', async () => {
+    const store = new FsStore(mkdtempSync(join(tmpdir(), 'civ-failure-')));
+    const s = new GameServer<GameState, Action, string>({
+      adapter, codec, store, idGen: secureId,
+      broadcaster: new NoopBroadcaster(), notifier: new NoopNotifier(),
+      gameUrl: (g, t) => `/play?game=${g}#invite=${t}`,
+    });
+    const { gameId, invites } = await s.createGame({ initialState: createGame({ players: ['italy', 'africa'], seed: 33, boardPreset: 'raw-2p' }), players: ['italy', 'africa'] });
+    const italy = tokenOf(invites.italy!);
+    const africa = tokenOf(invites.africa!);
+    const actorToken = (await s.fetch(gameId, italy)).yourTurn ? italy : africa;
+    const sessions = new SeatSessionCodec('test-session-secret-with-more-than-thirty-two-characters');
+    const exchange = await handleApi(s, 'POST', `/api/games/${gameId}/session`, new URLSearchParams(), { inviteToken: actorToken }, undefined, { sessions });
+    const cookie = exchange.headers?.['set-cookie'];
+    expect(cookie).toBeTruthy();
+
+    store.putSnapshot = async () => { throw new Error('database password=private-value connection interrupted'); };
+    const result = await handleApi(s, 'POST', `/api/games/${gameId}/move`, new URLSearchParams(), {
+      action: { type: 'pass' }, expectedTurn: 0, requestId: crypto.randomUUID(),
+    }, undefined, { sessions, cookie });
+    expect(result).toEqual({ status: 503, body: { error: 'request could not be completed' } });
+    expect(JSON.stringify(result)).not.toContain('private-value');
+    expect((await s.fetch(gameId, actorToken)).turn).toBe(0);
   });
 });

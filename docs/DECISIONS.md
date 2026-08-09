@@ -59,3 +59,10 @@
 - **Status:** Accepted and implemented in Phase 1
 - **Decision:** Do not expose framework report submission or device-reporter lookup in vanilla. Render no reporting UI and send no automatic crash data. Keep legacy report list/resolve absent by default; explicit enablement requires a distinct server-side bearer and returns a sanitized metadata-only shape.
 - **Reason:** Framework 0.42 deliberately duplicates full authoritative snapshots into reports, and the existing random client reporter marker is not an authorization boundary. Disabling submission is the least complex secure vanilla default and avoids designing a second private-data store during gameplay validation.
+
+## ADR-0009 — Require bounded revision-aware API writes
+
+- **Date:** 2026-08-09
+- **Status:** Accepted and implemented in Phase 1
+- **Decision:** Parse POST bodies under a 64 KiB limit and validate explicit endpoint schemas. Require network moves to include the last observed authoritative snapshot turn and a random request ID; reject stale/duplicate revisions before engine submission while retaining the store's unique-turn write as the concurrency guard. Serialize only fixed public error messages.
+- **Reason:** Engine legality alone does not bound transport abuse, distinguish stale retries, or stop backend exception details from crossing the API boundary. Revision checking composes with the existing optimistic-concurrency store without changing gameplay decisions.

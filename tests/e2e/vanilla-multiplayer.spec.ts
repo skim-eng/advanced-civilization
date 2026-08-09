@@ -165,20 +165,59 @@ test('exchanges a copied invitation into a refreshable HttpOnly session without 
   }
 });
 
+test('rejects malformed, oversized, unsupported, stale, duplicate, and wrong-player requests without mutation', async ({ request }) => {
+  const createUrl = `${API_BASE}/api/games`;
+  expect((await request.fetch(createUrl, { method: 'POST', headers: { 'content-type': 'text/plain' }, data: '{}' })).status()).toBe(415);
+  expect((await request.fetch(createUrl, { method: 'POST', headers: { 'content-type': 'application/json' }, data: Buffer.from('{') })).status()).toBe(400);
+  expect((await request.fetch(createUrl, { method: 'POST', headers: { 'content-type': 'application/json' } })).status()).toBe(400);
+  expect((await request.fetch(createUrl, { method: 'POST', headers: { 'content-type': 'application/json' }, data: JSON.stringify({ padding: 'x'.repeat(65_536) }) })).status()).toBe(413);
+  expect((await request.post(createUrl, { data: { players: ['italy', 'africa'], unexpected: true } })).status()).toBe(422);
+  expect((await request.get(`${API_BASE}/api/games/not-a-valid-game-id`)).status()).toBe(404);
+
+  const game = await createGame(request, 275);
+  const italyInvite = tokenFromInvite(game.invites.italy!);
+  const africaInvite = tokenFromInvite(game.invites.africa!);
+  expect((await exchangeInvite(request, game.gameId, italyInvite)).status()).toBe(200);
+  const italyResponse = await authenticatedFetch(request, game.gameId);
+  const italyState = await italyResponse.json() as { turn: number; yourTurn: boolean };
+  const actorInvite = italyState.yourTurn ? italyInvite : africaInvite;
+  const offClockInvite = italyState.yourTurn ? africaInvite : italyInvite;
+  const moveUrl = `${API_BASE}/api/games/${encodeURIComponent(game.gameId)}/move`;
+  const requestId = crypto.randomUUID();
+
+  expect((await exchangeInvite(request, game.gameId, offClockInvite)).status()).toBe(200);
+  expect((await request.post(moveUrl, { data: { action: { type: 'pass' }, expectedTurn: italyState.turn, requestId: crypto.randomUUID() } })).status()).toBe(403);
+
+  expect((await exchangeInvite(request, game.gameId, actorInvite)).status()).toBe(200);
+  expect((await request.post(moveUrl, { data: { action: { type: 'unknown' }, expectedTurn: italyState.turn, requestId: crypto.randomUUID() } })).status()).toBe(422);
+  expect((await request.post(moveUrl, { data: { action: { type: 'pass', nested: {} }, expectedTurn: italyState.turn, requestId: crypto.randomUUID() } })).status()).toBe(422);
+  expect((await request.post(moveUrl, { data: { action: { type: 'pass' }, expectedTurn: italyState.turn + 1, requestId: crypto.randomUUID() } })).status()).toBe(409);
+  expect((await request.post(`${API_BASE}/api/games/${encodeURIComponent(game.gameId)}/messages`, { data: { body: 'x'.repeat(501) } })).status()).toBe(422);
+
+  const accepted = await request.post(moveUrl, { data: { action: { type: 'pass' }, expectedTurn: italyState.turn, requestId } });
+  expect(accepted.status()).toBe(200);
+  const acceptedTurn = (await accepted.json() as { turn: number }).turn;
+  const duplicate = await request.post(moveUrl, { data: { action: { type: 'pass' }, expectedTurn: italyState.turn, requestId } });
+  expect(duplicate.status()).toBe(409);
+  const after = await authenticatedFetch(request, game.gameId);
+  expect((await after.json() as { turn: number }).turn).toBe(acceptedTurn);
+});
+
 test('accepts exactly one of two simultaneous submissions for the same turn', async ({ request }) => {
   const game = await createGame(request, 301);
   const italy = tokenFromInvite(game.invites.italy!);
   const africa = tokenFromInvite(game.invites.africa!);
   expect((await exchangeInvite(request, game.gameId, italy)).status()).toBe(200);
   const italyView = await authenticatedFetch(request, game.gameId);
-  const italyOnClock = (await italyView.json() as { yourTurn: boolean }).yourTurn;
+  const italyState = await italyView.json() as { yourTurn: boolean; turn: number };
+  const italyOnClock = italyState.yourTurn;
   const actorToken = italyOnClock ? italy : africa;
   if (!italyOnClock) expect((await exchangeInvite(request, game.gameId, actorToken)).status()).toBe(200);
   const moveUrl = `${API_BASE}/api/games/${encodeURIComponent(game.gameId)}/move`;
 
   const responses = await Promise.all([
-    request.post(moveUrl, { data: { action: { type: 'pass' } } }),
-    request.post(moveUrl, { data: { action: { type: 'pass' } } }),
+    request.post(moveUrl, { data: { action: { type: 'pass' }, expectedTurn: italyState.turn, requestId: '00000000-0000-4000-8000-000000000001' } }),
+    request.post(moveUrl, { data: { action: { type: 'pass' }, expectedTurn: italyState.turn, requestId: '00000000-0000-4000-8000-000000000001' } }),
   ]);
   const statuses = responses.map((response) => response.status());
   expect(statuses.filter((status) => status === 200)).toHaveLength(1);
