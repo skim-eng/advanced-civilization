@@ -1,6 +1,12 @@
 # Project Chronicle roadmap
 
-Phase 0 is merged at `31fad73503d91f8d4b8b5210e537cbd24ad81975`. Phase 1 is active on `test/vanilla-multiplayer` with owner approval in principle. Phase 2 remains unauthorized. Phases 3–14 are product and engineering direction only; they are not authorization to implement.
+Phase 0 is merged at `31fad73503d91f8d4b8b5210e537cbd24ad81975`.
+Phase 1 passed at `79d479774ca83b8d07a717e08b197a5ac788d62e`
+and was merged by ordinary merge commit
+`ba773789c52f3757f68ea459abeb7da8a8f01f27`. Phase 2 private vanilla
+staging passed on `codex/phase2-vanilla-staging`; its evidence is in
+`VANILLA_STAGING_ACCEPTANCE.md`. Phases 3–14 remain product and engineering
+direction only and are not authorized for implementation.
 
 ## Phase 0 — Preserve and audit the vanilla baseline
 
@@ -10,9 +16,17 @@ Pin John Champaign's exact upstream commit, preserve history with archive refs, 
 
 Run Node API and Vite separately, document proxy and filesystem persistence, and manually validate landing, hotseat, human-versus-AI, schematic board, a legal action, actor advancement, refresh, and console health. Add Playwright in a separate focused commit with isolated player contexts and deterministic seeds. Cover 2/4/6 players, invitation isolation, raw server redaction, move ownership, reconnect, polling, Realtime, concurrency, refresh durability, failure handling, and artifact leakage. Add CI and a real-device checklist. Repair critical baseline security findings without changing vanilla rules.
 
+Status: complete and merged. The acceptance record is `PHASE_1_ACCEPTANCE.md`.
+
 ## Phase 2 — Private vanilla staging deployment
 
 Deploy the supported Cloudflare Pages/Functions + Supabase architecture to owner-controlled resources, initially at a private Pages URL and then `civ-vanilla.kimsvideo.org`. Apply a reviewed schema, keep the service role server-side, gate the full site with Cloudflare Access, disable indexing and upstream services, add security headers, validate 2/4/6-player behavior in production, measure Realtime/polling, run a limited ten-game soak test, document rollback, and issue a vanilla staging acceptance report.
+
+Status: complete. The private basic version is available at the Access-protected
+Pages URL. The selected Cloudflare account has no eligible custom-domain zone,
+so no DNS was changed. This phase stops after private vanilla staging; it does
+not authorize Phase 3 or any gameplay, rules, data, map, graphics, scoring, or
+deterministic-RNG change.
 
 ## Phase 3 — Vanilla second-screen prototype
 

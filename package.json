@@ -8,12 +8,16 @@
   "author": "John Champaign",
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "build:functions": "wrangler pages functions build functions --outdir .wrangler/phase2-functions",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:e2e": "playwright test",
+    "test:e2e:hosted": "playwright test",
     "test:schema": "vitest run --config vitest.schema.config.ts",
     "test:rls": "vitest run --config vitest.rls.config.ts",
     "test:secrets": "node scripts/check-browser-secrets.mjs",
+    "test:deploy-artifacts": "node scripts/check-deploy-artifacts.mjs",
+    "cleanup:hosted-games": "node scripts/cleanup-hosted-games.mjs",
     "test:watch": "vitest",
     "extract": "node --experimental-strip-types scripts/extract-map.ts",
     "build:board": "node scripts/build-board.mjs",
@@ -39,6 +43,7 @@
     "sharp": "^0.35.2",
     "typescript": "^5.6.0",
     "vite": "8.2.1",
-    "vitest": "4.1.10"
+    "vitest": "4.1.10",
+    "wrangler": "4.120.0"
   }
 }

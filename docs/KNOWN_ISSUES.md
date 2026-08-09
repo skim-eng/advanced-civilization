@@ -1,8 +1,8 @@
 # Known issues
 
-Status reflects the Phase 1 implementation checkpoint
-`c0ee66fa4b3cddd9b0c3b36647ac718c1be21f26`. Final hosted acceptance is
-recorded separately in `docs/PHASE_1_ACCEPTANCE.md`.
+Status reflects private staging validated application checkpoint
+`36c974e5e9dc44d3ebe77cf8d67dc6f69ea93846`. Final hosted acceptance is in
+`docs/VANILLA_STAGING_ACCEPTANCE.md`.
 
 ## Phase 1 blocker disposition
 
@@ -25,12 +25,13 @@ recorded separately in `docs/PHASE_1_ACCEPTANCE.md`.
 |---|---|---|
 | KI-008 | Open performance observation | The minified UI JavaScript is 1,031.88 kB (295.44 kB gzip) and still triggers Vite's 500 kB warning. Do not mix unrelated optimization into Phase 1. |
 | KI-010 | Open build-quality observation | `npm run build` still emits tests and source maps into local `dist` (154 files, about 2.3 MiB). `dist` is not the Pages artifact. |
-| KI-012 | Must verify before Phase 2 deployment | The client retains a 2.5-second self-healing poll even when optional Realtime is configured. Local polling and the state-free Realtime wire contract pass; hosted service usage/quotas are unmeasured. |
+| KI-012 | Resolved for private staging | The 2.5-second self-healing poll and optional state-free Realtime both passed hosted testing. Bounded measurements are in `VANILLA_STAGING_ACCEPTANCE.md`; no capacity extrapolation is made. |
 | KI-014 | Accepted development constraint | This workstation has bundled Node/npm tooling rather than system `node`/`npm`; CI uses pinned Node 24 and ordinary `npm ci`. |
-| KI-015 | Must verify before Phase 2 deployment | PGlite proves PostgreSQL schema/RLS semantics, but does not reproduce Supabase PostgREST or the hosted Realtime service. Repeat browser-role denial and state-free broadcast/refetch against a new owner-controlled environment only after Phase 2 authorization. |
-| KI-016 | Must fix before Phase 2 deployment | Cloudflare Access, production headers/CSP/HSTS/noindex, provider rate limits, custom domain behavior, backup/restore, rollback, and deployed unauthorized-origin checks are not Phase 1 work. |
-| KI-017 | Not run; not a Phase 1 blocker | Physical iPhone Safari, Android Chrome, cross-network, sleep/resume, network-switch, and load/soak testing require devices or deployed infrastructure. The local desktop/manual record is in `docs/MANUAL_MULTIPLAYER_TEST.md`. |
+| KI-015 | Resolved for private staging | Owner Supabase denies browser roles, service lifecycle/cleanup passes, broadcasts are state-free, no game table is published, and deployed browser Realtime refetch/polling pass. |
+| KI-016 | Resolved for private staging | Owner-authorized Zero Trust Free activated at `$0`; alias/preview/API Access, hosted controls, rollback, cleanup, and Free usage pass. This account has no `kimsvideo.org` zone, so the custom domain is an accepted conditional limitation and no DNS changed. |
+| KI-017 | Accepted device limitation | Hosted isolated Chromium covers desktop 2/4/6 seats, reconnect, Realtime/polling, redeploy, and ten-game soak. Physical iPhone Safari, Android Chrome, sleep/resume, and network-switch behavior remain unrun before broader sharing. |
+| KI-018 | Accepted provider limitation | Supabase Free provides no automatic/PITR restore. Recovery uses the checksum-pinned ordered migration from zero; create a verified untracked logical dump before any future hosted migration or owner data. |
 
-No Cloudflare environment or hosted Supabase project exists from Phase 1. No
-claim of deployment readiness is made; these remaining items gate Phase 2
-deployment, not merging the local vanilla multiplayer hardening branch.
+No open issue is classified `MUST_FIX_BEFORE_PHASE_2_DEPLOYMENT`. The remaining
+items are accepted private-staging limitations, not approval for a public launch
+or Phase 3 work.

@@ -27,6 +27,12 @@ These destinations are outside the default allowlist. They may be enabled only b
 
 Administrative report forwarding and analytics have no enabled destination in Phase 1. Reporting is addressed separately in the Phase 1 reporting gate. Cloudflare and hosted Supabase remain out of scope until Phase 2 authorization.
 
+For Phase 2 private staging, the only additional browser destination is the
+exact owner Supabase HTTPS/WSS origin for state-free Realtime. The authoritative
+API remains same-origin behind Cloudflare Access. The Functions server may call
+the exact owner Supabase origin for PostgREST and broadcast; no email, hub,
+identity, rating, reporting, analytics, or beacon destination is configured.
+
 ## Enforcement
 
 - Browser tests intercept every HTTP(S) request, permit loopback application origins only, and fail if any other origin is observed.

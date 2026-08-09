@@ -98,8 +98,38 @@ PostgREST/Realtime, Cloudflare Access/headers/domain, backup/rollback, and
 load/soak were not run because Phase 1 prohibits provisioning or deployment.
 They remain explicit Phase 2 gates.
 
+## Phase 2 hosted acceptance
+
+- Date: 2026-08-09
+- Branch: `codex/phase2-vanilla-staging`
+- Validated application: `36c974e5e9dc44d3ebe77cf8d67dc6f69ea93846`
+- Private URL: `https://kimsvideo-civ-vanilla.pages.dev`
+- Supabase staging: `csbcmaiytgotctodxahz` (`us-east-1`, Free)
+
+Hosted Playwright passed 7/7 in 14.5 seconds. Separate contexts covered every
+seat in 2-, 4-, and 6-player games, distinct credentials/identities, raw hidden
+projection, legal/off-clock action behavior, malformed/oversized/unsupported
+requests, stale/duplicate/raced writes, cross-game denial, invitation exchange,
+fresh-browser reconnect, polling fallback, state-free hosted Realtime refresh,
+and persistence through an application redeploy. Exactly one concurrent move
+committed. Opponent hands were empty, outbound RNG was zero, calamity provenance
+was empty, and no invite or seat token appeared in a projected response.
+
+The ten-game bounded soak used 2 seats x4, 4 seats x3, and 6 seats x3. It made
+117 requests: 116 expected 200 and one deliberate cross-game 401. Latency was
+394.50 ms p50, 873.38 ms p95, and 1,242.91 ms maximum. Realtime refresh was
+333.46–1,238.69 ms and polling fallback was 2,985.70–3,893.67 ms. Four
+reconnects, 38 hidden-projection checks, and game-chat isolation passed. This is
+a bounded observation, not a capacity claim.
+
+The reviewed migration/provider checks also passed: four RLS-enabled tables,
+zero public policies, browser-role PostgREST denial, server lifecycle, only
+`{turn}`/`{}` broadcasts, and zero game tables in the Realtime publication.
+Targeted cleanup removed 34 recorded games and left all four tables empty.
+
 ## Vanilla integrity
 
-The Phase 1 diff changes no file under `src/data`, no map/graphics/artwork, and no
-rules/action/scoring implementation. The only engine diff is the outbound
-`viewFor` redaction. Seeded canonical state and gameplay behavior are unchanged.
+The Phase 1/2 diff changes no file under `src/data`, no map/graphics/artwork,
+and no rules/action/scoring implementation. The only engine diff is the
+outbound `viewFor` redaction. Seeded canonical state and gameplay behavior are
+unchanged.

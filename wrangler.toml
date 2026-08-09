@@ -1,5 +1,5 @@
 # Cloudflare Pages config for the online deploy (advanced-civilization).
-name = "advanced-civilization"
+name = "kimsvideo-civ-vanilla"
 compatibility_date = "2024-09-01"
 # Required for Pages to honor this file (else wrangler ignores it entirely).
 # Vite builds the SPA here; functions/ is compiled by Pages automatically.

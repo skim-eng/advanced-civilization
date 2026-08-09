@@ -32,10 +32,50 @@ only `{turn}` and a message contains `{}`. Neither payload includes a snapshot,
 hand, token, report, or service credential. Browser clients never subscribe to
 snapshot rows; a signal causes a fresh authenticated HTTP projection.
 
-## Future hosted procedure
+## Phase 2 hosted staging verification
 
-Phase 2, if authorized, must apply the ordered migrations to a new owner-controlled Supabase project using the platform's reviewed migration mechanism, record migration checksums, repeat the service/anon checks through PostgREST and the actual hosted Realtime service, and rehearse rollback/restore before staging approval. Do not paste `schema.sql` into an already-populated project as an undocumented substitute for migrations.
+The dedicated free-tier staging project is `csbcmaiytgotctodxahz` in
+`us-east-1`. The canonical migration was applied from zero in lexical order
+through the SQL editor. Its SHA-256 is
+`78c377bbde6417871177833aec31cb8fdefb7df86e9c3873f1f4af13a46801c2`.
+No database password or API key is recorded.
+
+Hosted catalog verification found the expected four tables and every reviewed
+column/index. Each table has RLS enabled, zero policies, no anon/authenticated
+CRUD grant, and the required service-role grant. Actual PostgREST checks against
+one targeted fixture returned 401 for all four anon reads and 403 for all four
+authenticated reads. Server-only inserts returned 201, reads returned one row
+each with 200, targeted deletion returned 204, cascading removal covered
+snapshots/messages, and all four follow-up counts were zero. The temporary Auth
+user was also deleted.
+
+Actual hosted Realtime accepted the framework broadcaster and delivered only
+`moved` payloads containing `turn` and `message` payloads with no keys. The
+`supabase_realtime` publication contains zero `dbf_*` tables, so authoritative
+rows are not a table-change feed. End-to-end browser Realtime refetch and the
+2.5-second polling fallback passed against the private Pages deployment.
+
+Do not paste `schema.sql` into an already-populated project as an undocumented
+substitute for ordered migrations.
 
 ## Data deletion
 
 Game deletion uses `delete from dbf_games where game_id = …`; snapshots and messages cascade. Phase 1 creates no reports. A full legacy-report purge is `delete from dbf_reports` under the server role and is verified in the lifecycle test. Any future retention design requires a new migration and policy decision.
+
+Phase 2 cleanup used only 34 recorded 256-bit game IDs. It deleted matching
+report rows and game rows, relied on reviewed foreign-key cascades, then
+verified global zero rows in all four tables. Broad or unqualified deletion is
+prohibited.
+
+## Free-plan recovery boundary
+
+The selected Supabase Free plan does not provide automatic backups or
+point-in-time recovery. The versioned migration and its recorded checksum are
+therefore the canonical schema recovery artifact. Applying it from zero in
+both isolated PGlite and the hosted staging project rehearsed schema recovery.
+Before any future hosted migration, create an untracked logical dump with the
+Supabase CLI/`pg_dump`, checksum it without logging credentials, and restore it
+only into a separate disposable target for catalog comparison. No owner game
+data exists at this checkpoint. A legacy signing key inspected during provider
+verification was revoked after Pages moved to the current key path; the revoked
+key returns 401. No key value is recorded.

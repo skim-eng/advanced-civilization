@@ -54,6 +54,12 @@ jobs:
       - name: Build UI
         run: npm run build:ui
 
+      - name: Build Pages Functions
+        run: npm run build:functions
+
+      - name: Verify deployment artifacts
+        run: npm run test:deploy-artifacts
+
       - name: Scan browser artifacts for server-only secrets
         env:
           SUPABASE_SERVICE_KEY: ci-service-role-canary-not-a-secret
