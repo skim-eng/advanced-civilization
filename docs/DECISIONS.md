@@ -26,7 +26,7 @@
 ## ADR-0004 — No upstream hub traffic in Project Chronicle staging
 
 - **Date:** 2026-08-09
-- **Status:** Accepted; implementation pending before staging
+- **Status:** Accepted and implemented in Phase 1
 - **Decision:** Games-hub play counts, cross-promotion, identity, JWKS, and leaderboard integration must be disabled by default. They may be re-enabled only through an explicit configuration pointing to an owner-controlled service.
 - **Reason:** Vanilla multiplayer does not require John's identity or leaderboard, and the staging app must not silently transmit player data to infrastructure outside the owner's control.
 
@@ -51,7 +51,7 @@
 - **Status:** Accepted
 - **Decision:** Run the lockfile install, 174-test baseline, typecheck, server build, and UI build on every push and pull request using Node.js 24 on GitHub Actions. Add Playwright only after the untouched local multiplayer baseline has been verified.
 - **Reason:** Phase 1 security and multiplayer work needs a repeatable hosted regression gate before behavior changes begin.
-- **Consequence:** The initial workflow intentionally reproduces the existing command set and does not deploy, provision services, or change gameplay.
+- **Consequence:** The workflow now also runs both audits, schema/RLS integration, browser-secret scan, repeated clean-build proof, and isolated Playwright. It does not deploy, provision services, or change gameplay.
 
 ## ADR-0008 — Disable player reporting; isolate legacy administration
 
@@ -73,4 +73,12 @@
 - **Status:** Accepted for Phase 1 local/CI verification
 - **Decision:** Treat ordered SQL under `supabase/migrations/` as canonical and verify it from zero with PGlite's real PostgreSQL engine in an isolated filesystem cluster. Model Supabase's browser and service roles explicitly, test RLS operations, close/reopen persistence, and scan browser artifacts for server-only credentials.
 - **Reason:** The Phase 1 environment has no Docker/native PostgreSQL and hosted Supabase is prohibited. A PostgreSQL engine test provides materially stronger schema/RLS evidence than parsing SQL text while remaining reproducible and local.
-- **Limit:** PGlite is single-connection and does not reproduce PostgREST or hosted Supabase Realtime. Those service-specific checks remain a Phase 2 pre-deployment gate; application broadcasts remain state-free and browser table roles remain denied in Phase 1.
+- **Limit:** PGlite is single-connection and does not reproduce PostgREST or hosted Supabase Realtime. Those service-specific checks remain a Phase 2 pre-deployment gate; Phase 1 separately verifies the exact state-free Realtime wire payload and browser table-role denial.
+
+## ADR-0011 — Treat future deck/RNG and pending choices as server-only state
+
+- **Date:** 2026-08-09
+- **Status:** Accepted and implemented in Phase 1
+- **Decision:** Preserve the canonical deterministic state unchanged, but replace ordered deck identities with count-preserving `[hidden]` placeholders, replace outbound RNG with sentinel `0`, remove calamity provenance/resume snapshots, and expose pending-choice candidates or partial factions only to the named chooser. Preserve only the minimal holder/stage metadata required for the waiting UI. Maintain an explicit role-by-field matrix.
+- **Reason:** The upstream projection covered hands and trade bundles but still exposed unrevealed future cards, random state, and internal/pending data through raw API responses. These fields are not required by rival clients.
+- **Consequence:** Online transport and AI inputs are least-privilege without changing canonical state, seeded randomness, action legality, rules, or outcomes. Stack length remains visible so the existing ninth-stack control behaves normally.

@@ -1,152 +1,125 @@
 # Current vanilla architecture
 
-Baseline audited: `4b3f981cdf4b3cefbb8f523b0d78c9eb320e1422` on 2026-08-09.
+Baseline: `4b3f981cdf4b3cefbb8f523b0d78c9eb320e1422`.
+Phase 1 implementation checkpoint:
+`c0ee66fa4b3cddd9b0c3b36647ac718c1be21f26`.
 
-## Runtime and components
+## Components
 
 | Component | Location | Responsibility |
 |---|---|---|
-| Game data | `src/data/` | Typed loaders plus JSON for areas, adjacency, civilizations, commodities, advances, calamities, AST, play areas, territories, coastlines, and water graph. |
-| Deterministic engine | `src/engine/` | Setup, state types, seeded turn machine, legality, action application, migrations, result/scoring, and viewer projection. |
-| Heuristic AI | `src/ai/heuristic.ts` | Selects actions from the redacted state provided for its seat. Server-driven online; browser-driven in local mode. |
-| Shared API router | `src/server/handlers.ts` | Maps REST requests to `GameServer` operations. Used by both local Node and Cloudflare Pages Functions. |
-| Local server wiring | `src/server/game-server.ts`, `src/server/http.ts` | Filesystem or Supabase store, optional Realtime/Resend, Node HTTP on port 8787. |
-| Production function | `functions/api/[[path]].ts` | Cloudflare Pages catch-all `/api/*` function using Supabase persistence. |
-| Browser API | `src/client/api.ts` | Same-origin HTTP client, query-string seat token, report calls, and optional Supabase Realtime subscription. |
-| React UI | `src/ui/` | Landing screen, local/hotseat game, online lobby/game, schematic map, information panels, and bring-your-own VASSAL art. |
-| Build | `vite.config.ts`, `tsconfig.json`, `wrangler.toml` | Vite SPA to `dist-ui`; TypeScript server/library output to `dist`; Cloudflare Pages configuration. |
-| Framework | `digital-boardgame-framework@0.42.0` | Seeded RNG, codecs, `GameServer`, filesystem/Supabase stores, polling hooks, Realtime broadcaster, reports, Resend notifier, identity, ratings, and Vite build stamp. |
+| Game data | `src/data/` | Unchanged typed loaders and JSON for map/play areas, civilizations, commodities, advances, calamities, and AST. |
+| Deterministic engine | `src/engine/` | Unchanged setup/rules/action legality/outcomes plus strengthened seat-specific outbound projection. Canonical RNG remains serialized and server authoritative. |
+| Heuristic AI | `src/ai/heuristic.ts` | Selects actions for its seat from a seat projection; it cannot see the future deck/RNG or rival private state. |
+| Shared API router | `src/server/handlers.ts` | One strict, bounded, safe-error REST router for Node and Pages. Protected routes authenticate only the scoped session. |
+| Authentication | `src/server/secure-id.ts`, `session*.ts` | 256-bit game/invite IDs; fragment invitation exchange; AES-GCM HttpOnly game-path cookie. |
+| Local server | `src/server/game-server.ts`, `http.ts` | Loopback Node API with isolated filesystem persistence by default. Optional Supabase/Realtime/Resend/owner services are environment-gated. |
+| Future Pages Function | `functions/api/[[path]].ts` | Same router/session/projection using future server-only Supabase configuration. Not deployed in Phase 1. |
+| Browser API/UI | `src/client/api.ts`, `src/ui/` | Same-origin credential-free URLs after exchange, expected-turn writes, polling, optional state-free Realtime refresh. |
+| Persistence schema | `supabase/migrations/`, `supabase/schema.sql` | Ordered PostgreSQL schema for framework 0.42; every table uses RLS with server-only grants. |
+| CI and tests | `.github/workflows/ci.yml`, `src/**/*.test.ts`, `tests/` | Clean install/audits/unit/type/build/UI, migration, RLS, artifact scan, deterministic builds, and isolated Playwright. |
 
-The engine implements a sequential authoritative state machine. `GameState.rngState` preserves deterministic randomness. The adapter's `tryApplyAction` validates parameterized moves on the authoritative unredacted state; `currentActor`/`canAct` enforce whose turn it is.
-
-## Data flow
+## Authenticated data flow
 
 ```mermaid
 flowchart LR
-    B["Browser: React UI"]
-    API["Same-origin /api request\nseat token in query string"]
-    H["Pages Function or local Node server\nhandleApi"]
-    GS["digital-boardgame-framework GameServer"]
-    E["Civ adapter / deterministic engine"]
-    P["Persistence\nFsStore or SupabaseStore"]
-    V["adapter.viewFor(player)\nplayer-redacted response"]
-    RT["Optional Supabase Realtime\nturn-only broadcast"]
+    I["Shareable invite\n#invite=credential"]
+    X["POST /api/games/:id/session"]
+    C["Encrypted HttpOnly cookie\nscoped to one game API path"]
+    B["Browser URL\n?game=id only"]
+    H["Strict shared API router"]
+    G["GameServer\nauthority + concurrency"]
+    P["FsStore or future SupabaseStore\nunredacted canonical rows"]
+    E["Deterministic Civ engine"]
+    V["viewFor(authenticated seat)\nrole-specific response"]
+    R["Optional Realtime\n{turn} signal only"]
 
-    B --> API --> H --> GS
-    GS --> P
-    GS --> E
-    E --> GS
-    GS --> V --> H --> B
-    GS -. "{turn} only" .-> RT -. "refresh signal" .-> B
-    B -. "poll every 2.5 s while waiting" .-> API
+    I --> X --> C --> B
+    B --> H --> G
+    G <--> P
+    G <--> E
+    G --> V --> H --> B
+    G -.-> R -. "refetch" .-> B
 ```
 
-## Local development topology
+The invitation fragment is not sent in the initial HTTP request. The browser
+POSTs it once, receives a protected cookie, removes the fragment with
+`history.replaceState`, and thereafter sends no bearer in URLs or JavaScript.
+Invitation reuse is intentionally supported for a fresh device. Revocation and
+rotation do not exist in framework 0.42.
 
-- `npm run serve`: compiles TypeScript, starts the Node API on `http://localhost:8787`, and defaults to `.data/games`.
-- `npm run dev`: starts Vite (normally `http://localhost:5173`) and proxies `/api` to `VITE_API_URL` or `http://localhost:8787`.
-- The two services are separate processes.
-- `.data/games/games/<gameId>/meta.json` stores player IDs, bearer seat tokens, optional email addresses, identities, and reminder metadata.
-- `.data/games/games/<gameId>/snapshots/<turn>.json` stores encoded **unredacted** game state. Files are created exclusively, providing the local duplicate-turn concurrency check.
-- `.data/games/games/<gameId>/messages.json` stores participant chat.
-- `.data/games/reports/<reportId>.json` stores reports, including full server snapshots.
-- Files survive API restarts until `.data/` is explicitly removed. `.data/` is ignored by Git.
+Every move includes the last observed authoritative turn and a cryptographic
+request ID. The router rejects stale/duplicate revisions before framework
+submission; the persistence layer's unique-turn write remains the final race
+guard. Exactly one concurrent transition commits.
 
-Phase 1 must actually start both processes and measure these behaviors; they have not been claimed as browser-validated in Phase 0.
+## Persistence and RLS
 
-## Production topology
+Local Node defaults to an ignored filesystem store. Tests allocate unique
+temporary stores and remove them with guarded prefix checks. Restart tests build
+a new store/server/session-codec instance over the same directory, reconnect,
+and continue the game.
 
-Vite builds the SPA to `dist-ui`. Cloudflare Pages compiles `functions/api/[[path]].ts` separately and serves it for `/api/*`. The Function creates a service-role Supabase client and a `SupabaseStore`; optional Resend email and Supabase Realtime are selected from environment variables. `wrangler.toml` enables `nodejs_compat` and declares `dist-ui` as the Pages output.
+The future production topology remains Cloudflare Pages Functions plus
+Supabase, but Phase 1 provisions neither. Ordered migrations create
+`dbf_games`, `dbf_snapshots`, `dbf_messages`, and `dbf_reports`, including
+framework 0.42 `identities` and `ranked_report` fields. All tables have RLS
+enabled, no browser policies, revoked anon/authenticated privileges, and
+service-role grants.
 
-The supplied SQL creates `dbf_games`, `dbf_snapshots`, `dbf_messages`, and `dbf_reports`. RLS is enabled with no public policies. The intended result is that the anon key cannot read table rows while the server-side service role can. Realtime sends broadcast messages rather than database changes.
+PGlite supplies a real isolated PostgreSQL engine for clean migration and role
+semantics. It proves create/seats/fetch/move/message/restart/reconnect/continue/
+delete/purge and browser-role CRUD denial. PostgREST and hosted Realtime service
+behavior must be repeated in Phase 2 before deployment.
 
-The checked-in SQL is not currently compatible with every column written by framework 0.42.0; see SEC-003 in `SECURITY_NOTES.md`.
+## Hidden information
 
-## Authentication and authorization
+`CivAdapter.viewFor` clones canonical state and applies the matrix in
+`docs/HIDDEN_STATE_MATRIX.md`. In summary:
 
-- Game creation is unauthenticated and returns one URL per seat.
-- Each game ID and each seat token is generated by `GameServer.id()`.
-- Requests send the token as `?token=...`; `GameServer.authenticate` compares it against the game's stored token map.
-- Fetch, legal actions, moves, game reports, and chat are token-gated.
-- Move ownership is enforced server-side before authoritative legality checks.
-- Game isolation depends on the game ID plus a token present in that game's token map.
-- The current ID generator uses `Math.random`, not a cryptographically secure generator. This is a staging blocker.
+- exact hand/calamity values only for the receiving seat;
+- public hand count plus `{}`/`[]` for rivals;
+- `[hidden]` placeholders preserve deck/queued-card counts without identities;
+- actual offers/responses only for their author and completed trades only for
+  their participants;
+- pending candidate/partial-choice data only for the named chooser;
+- no RNG, calamity provenance, resume snapshot, other-seat expansion/revolt
+  detail, seat token, invitation, email, identity metadata, or report snapshot;
+- legal actions only for the authenticated on-clock seat.
 
-## Hidden-information projection
+Game chat is game-wide among authenticated seats; no direct/private-message
+feature exists. No spectator/public state route exists. Realtime broadcasts
+only `{turn}` for a move or `{}` for a message, then the browser refetches the
+authenticated projection.
 
-`CivAdapter.viewFor` clones the state for an authenticated viewer and:
+## External services and network allowlist
 
-- retains only that viewer's trade-card hand and calamities;
-- exposes opponents' public hand counts while replacing their hands with `{}` and calamities with `[]`;
-- removes actual card contents from offers/responses not authored by the viewer while retaining declared claims;
-- limits completed deals to deals involving the viewer.
+Default local/CI operation needs only loopback same-origin UI/API traffic. The
+upstream games hub, splash, counter, identity, leaderboard, rating, analytics,
+beacon, and report integrations are not contacted. Browser tests abort and
+record every unexpected external request.
 
-`GameServer.fetch`, history, report-view capture, and AI selection call this projection. Supabase Realtime carries only a turn number and requires clients to refetch the projected view.
+Future owner services require explicit configuration described in
+`docs/NETWORK_ALLOWLIST.md`. Server secrets never use `VITE_`. Client-safe
+Supabase URL/anon values may be built into the UI only after RLS and Realtime
+deployment validation.
 
-Phase 0's existing test proves opponent hand redaction in one trade-phase scenario. It does not comprehensively prove every private field, pending offer, secret calamity, message, source map, console, or error path.
+## Reporting
 
-## Polling and Realtime
+Player/standalone reporting, automatic crash upload, reporter identifiers, and
+player lookup are disabled. Both report submission routes return 404, so new
+report fields/body size/retention are zero. Legacy report administration is
+absent by default; explicit enablement requires a separate server-only bearer
+and returns sanitized metadata without game ID, snapshot, reporter projection,
+log, or user-agent.
 
-`OnlineGame` calls the framework's `useGame` with `pollMs: 2500`. Waiting clients poll every 2.5 seconds; polling pauses while the viewer may act and while the document is hidden. If client-safe Supabase values are present, a Realtime broadcast also triggers a refetch. Because `pollMs` is explicitly set, the current UI retains the 2.5-second poll even with Realtime configured.
+## Build and intellectual-property boundary
 
-The broadcast topic is `game:<gameId>` and the payload is only `{turn}`. State is never placed in the broadcast. Clients use `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`; the server calls the broadcast API using its service-role key.
+The TypeScript server build writes local ignored `dist`; Vite writes the Pages
+artifact to ignored `dist-ui`. Generated version metadata is ignored and repeat
+builds compare deterministic outputs while requiring an empty Git status.
 
-## Bug reports
-
-In-game online reports require a seat token and store both a full server snapshot and the reporter's redacted view. Standalone local reports can include the browser's full local state. Reports also include a client log, message, severity, build, and user agent.
-
-The project router currently provides unauthenticated triage list and resolution routes. The list can return full report rows, including unredacted snapshots and player data. This must be removed from public routing or protected by separate administrator authentication before staging.
-
-## Identity, leaderboard, and other outbound services
-
-The vanilla multiplayer core does not require identity or leaderboard services, but the baseline contacts John's `https://games-hub-5vo.pages.dev` in several ways:
-
-| Trigger | Endpoint/data |
-|---|---|
-| First-session splash | GET `games.json`; exposes normal request metadata/referrer and renders hub-controlled cross-promotion. |
-| Local setup screen | GET `/stats?game=advanced-civilization`. |
-| Local game start | POST `/stats/hit` with game ID and mode. |
-| Online game creation | Server POST `/stats/hit` with game ID and mode. |
-| Online game view | `useIdentity()` auto-mints an anonymous identity with POST `/id/anon`; identity token may later be attached to the seat. |
-| Optional sign-in | Redirect/register/name/logout flows may transmit identity token, display name, redirect URL, and email. |
-| Identity verification | Server GET `/id/jwks` when claim-seat verification occurs. |
-| Leaderboard UI | Link to `/leaderboard?game=advanced-civilization`. |
-| Optional ratings | Server POST `/ratings/record` with player IDs and placements when a rating ingest key is configured. |
-
-These calls must be disabled by default or redirected to owner-controlled infrastructure before staging.
-
-Other outbound endpoints are:
-
-- the configured Supabase project (store and Realtime);
-- `https://api.resend.com/emails` only when Resend is configured;
-- the user-clicked VASSAL module link on `obj.vassalengine.org`;
-- same-origin `/api` and `version.json` requests.
-
-## Environment variables
-
-| Variable | Exposure | Purpose |
-|---|---|---|
-| `VITE_SUPABASE_URL` | Client-safe | Realtime project URL. |
-| `VITE_SUPABASE_ANON_KEY` | Client-safe | Realtime anon key; RLS must deny table reads. |
-| `VITE_API_URL` | Build/dev configuration | Vite development proxy target; not read by application client code. |
-| `SUPABASE_URL` | Server only | Supabase API URL. |
-| `SUPABASE_SERVICE_KEY` | **Secret, server only** | Full persistence and Realtime broadcast access; bypasses RLS. |
-| `RESEND_API_KEY` | **Secret, server only** | Optional email notifications. |
-| `MAIL_FROM` | Server only | Optional notification sender. |
-| `PUBLIC_BASE_URL` | Server only | Creates invitation URLs. |
-| `RATINGS_INGEST_KEY` | **Secret, server only** | Optional upstream leaderboard result submission. Must remain unset for Project Chronicle staging. |
-| `PORT` | Local server | Node listener port, default 8787. |
-| `DBF_DATA_DIR` | Local server | Filesystem-store directory, default `.data/games`. |
-
-## Trust-boundary inventory
-
-| Sensitive data | Boundary | Existing control | Baseline finding |
-|---|---|---|---|
-| Seat token | Invitation URL → browser history/address bar/clipboard → `/api` query | High-entropy-looking bearer string and server comparison | Generator is not cryptographically secure; URL remains visible; no explicit Referrer-Policy. |
-| Opponent hand/calamities/offers | Full snapshot → `viewFor` → HTTP response | Server-side clone and redaction | One scenario tested; comprehensive private-field coverage is pending. |
-| Full game state | Engine → filesystem/Supabase snapshots | Server-only store; Supabase RLS with no policies | Report triage route can return snapshots without admin auth. |
-| Email address | Lobby request → game metadata → optional Resend | Stored server-side; notifier is opt-in | No retention policy; reports/admin exposure could reveal associated metadata in future. |
-| Identity token/player ID | John's hub ↔ browser ↔ game server → game metadata | Hub signature verification | Upstream service is enabled by default in online UI; not owner-controlled. |
-| Service-role key | Cloudflare secret → Function → Supabase | No `VITE_` prefix; intended secret store | Must be bundle/log scanned; local ignore coverage was incomplete and is now tightened. |
-| Bug-report snapshot/log/user agent | Browser/server → report store → triage reader | Token required to submit online report | Full snapshots are intentionally stored; triage read/resolve endpoints lack admin auth. |
-| Local VASSAL artwork | User file → browser memory → IndexedDB/blob URLs | No upload path in loader | CSP must continue to allow needed blob URLs without adding an upload path. |
+The schematic map and all game data are unchanged. The optional VASSAL loader
+continues to process a user-supplied module in that browser and retain extracted
+art only in local IndexedDB. Project Chronicle commits, uploads, and serves no
+proprietary VASSAL or board artwork.

@@ -1,6 +1,8 @@
 # Vanilla multiplayer test plan
 
-Status: planned for Phases 1 and 2; only the existing Phase 0 Vitest evidence has been executed.
+Status: Phase 1 local matrix implemented and passing at
+`c0ee66fa4b3cddd9b0c3b36647ac718c1be21f26`; final hosted run pending. Phase 2
+deployment/device/load cases remain separately gated.
 
 ## Test principles
 
@@ -9,7 +11,7 @@ Status: planned for Phases 1 and 2; only the existing Phase 0 Vitest evidence ha
 - Give every player a separate Playwright browser context; never simulate seat isolation with tabs sharing storage.
 - Assert authorization and redaction against raw HTTP responses, not only UI visibility.
 - Never print or attach full invitation URLs, bearer tokens, service keys, private hands, or full report snapshots to CI logs or screenshots.
-- Run local tests without production secrets. Run Realtime tests only against an owner-controlled test Supabase project.
+- Run local tests without production secrets. Verify the state-free Realtime wire contract locally; use only a future owner-controlled project for provider-specific tests.
 - Record the tested commit SHA, Node/npm/browser versions, command exit codes, request timing, console errors, and network errors.
 
 ## Phase 1 browser cases
@@ -64,7 +66,39 @@ Status: planned for Phases 1 and 2; only the existing Phase 0 Vitest evidence ha
 
 ## Manual browser and device plan
 
-Phase 1 will create `docs/MANUAL_MULTIPLAYER_TEST.md` with step-by-step checks using a laptop browser for Player 1, private/incognito or a second laptop for Player 2, iPhone Safari, and Android Chrome when available. It will cover same-network and different-network joining, turns, refresh, sleep/resume, network switching, invite copy, tab closure, stale state, continuation, and private-information separation.
+The locally available desktop checks and the unexecuted device/deployment cases
+are recorded in `docs/MANUAL_MULTIPLAYER_TEST.md`. Physical iPhone/Android,
+cross-network, sleep/resume, and network-switch checks require devices or the
+future gated environment and are not claimed.
+
+## Phase 1 required-matrix mapping
+
+| # | Requirement | Automated evidence |
+|---:|---|---|
+| 1 | Two-player creation | Playwright two-seat polling test; raw API projection case. |
+| 2 | Four-player creation | Playwright 4-context test; raw API 4-seat case. |
+| 3 | Six-player creation | Playwright 6-context test; raw API 6-seat case. |
+| 4 | Distinct credential per seat | Invite-set cardinality at 2/4/6; secure-ID uniqueness test. |
+| 5 | Correct civilization identity | Every isolated context and raw response asserts `you`. |
+| 6 | Invalid credential rejection | Missing/malformed exchange and protected-route cases. |
+| 7 | Cross-game rejection | Game-A credential tested across game-B fetch/legal/move/messages/report. |
+| 8 | Cross-seat impersonation rejection | Credentials resolve only their server token-map seat; every 2/4/6 response asserts exact identity. |
+| 9 | Correct legal submit | Two-seat UI pass and server submit tests. |
+| 10 | Incorrect player rejection | Off-clock raw request returns 403 without mutation. |
+| 11 | Refresh preserves state | Invitation/session refresh and 4/6 repeated-refresh tests. |
+| 12 | Fresh-browser reconnect | Copied invite opens an isolated fresh context as the correct seat. |
+| 13 | Process restart preserves filesystem state | New `FsStore`/`GameServer`/session-codec instances reconnect and continue; schema lifecycle also closes/reopens. |
+| 14 | Polling fallback | Realtime variables absent; waiting context observes the move within 5.5 seconds. |
+| 15 | Realtime when configured locally | Exact local Supabase broadcaster wire contract: `{turn}`/`{}` only. Provider repetition is Phase 2. |
+| 16 | Opponent private data absent | Canonical projection inventory and every raw 2/4/6 seat response. |
+| 17 | Unauthenticated private data absent | Protected raw fetch returns only a 401 error. |
+| 18 | Exactly one simultaneous transition | Two same-turn submissions produce one 200 and one conflict; committed turn checked. |
+| 19 | Duplicate retry not doubled | Reused request/revision returns 409 and turn remains once-advanced. |
+| 20 | Repeated refresh integrity | Three refreshes in 4- and 6-seat games preserve displayed turn. |
+| 21 | External allowlist | Every browser context aborts/records non-loopback traffic; expected list is empty. |
+| 22 | Credential artifact absence | Fragment/cookie/history/referrer/console/log tests; traces/screenshots/video off; build/source-map canary scan; reports disabled. |
+| 23 | Database failure safety | Injected write failure returns fixed 503, contains no database secret, and preserves last committed turn. |
+| 24 | Isolated cleanup | Guarded cleanup for filesystem, Playwright, PGlite schema, and RLS temporary directories. |
 
 ## Phase 2 deployed acceptance subset
 

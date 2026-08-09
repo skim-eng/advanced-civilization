@@ -13,10 +13,6 @@ No engine, rules, game data, UI behavior, server behavior, dependency version, o
 
 The build-generated change to `dummy-non-existing-folder/version.json` was restored to the exact upstream content and is not a deviation.
 
-## Required before staging, not yet implemented
-
-The baseline audit found upstream integrations and security boundaries that must be disabled, feature-flagged, or repaired before a private staging deployment. Those future changes are listed in `docs/SECURITY_NOTES.md` and must be added here when implemented. They are not silently treated as completed Phase 0 work.
-
 ## Phase 1
 
 | Area | Change | Gameplay effect |
@@ -24,9 +20,18 @@ The baseline audit found upstream integrations and security boundaries that must
 | Continuous integration | Added a GitHub Actions workflow that runs `npm ci`, `npm test`, `npm run typecheck`, `npm run build`, and `npm run build:ui` on pushes and pull requests with Node.js 24. | None. |
 | Development log hygiene | Redact seat and service credential query values from Vite development log messages, including proxy errors. | None. |
 | Browser test harness | Added Playwright 1.62.1 with isolated seat contexts, external-network blocking, sanitized artifacts, temporary persistence, and API concurrency/authorization coverage. | None. |
+| Upstream integrations | Removed default upstream splash/cross-promotion/identity/leaderboard/counter behavior; optional server integrations require explicit flags and owner-controlled URLs. | None; local and online vanilla play remain available. |
+| Development dependencies | Pinned compatibility-tested Vite 8.2.1, Vitest 4.1.10, and React plugin 6.0.5; added explicit source-only Vitest discovery. | None; build/test tooling only. |
+| Build metadata | Removed the tracked generated placeholder and confined version metadata to ignored `dist-ui/version.json`; CI compares repeat artifacts and clean Git state. | None. |
 | Multiplayer authentication | Replaced framework-default random IDs and query-string seat tokens in Node/Pages wiring with Web Crypto IDs and a fragment-to-encrypted-HttpOnly-session exchange. | No rules or legal-action effect; only invitation and HTTP authentication transport changes. |
 | Reporting boundary | Disabled player/standalone reporting and automatic crash uploads; removed client reporter-ID lookup; made sanitized legacy triage explicitly opt-in behind a separate server-only bearer. | None; reporting and diagnostics only. |
 | API request integrity | Added strict body/shape limits, safe error serialization, expected-turn checks, and random request IDs for network moves. | No action legality or rules effect; stale/duplicate transport requests now fail before a second transition. |
 | Database reproducibility | Replaced the drifted schema snapshot with an ordered framework-0.42-compatible migration and added isolated PostgreSQL lifecycle/RLS/browser-secret tests. | None; persistence schema and test infrastructure only. |
+| Hidden-state projection | Redacted ordered deck identities, RNG state, calamity provenance, resume metadata, non-owner pending choices, and per-seat expansion/revolt data in addition to upstream hand/offer redaction. | None to canonical state, action legality, deterministic RNG, or outcomes; transport projection only. |
+| Realtime verification | Added a wire-contract test proving optional move/message broadcasts contain only a turn number or empty signal. | None. |
+| Multiplayer coverage | Expanded raw API and isolated-browser coverage to every seat in 2-, 4-, and 6-player games, restart/reconnect, refresh, malformed/stale/duplicate/race/failure, and cleanup cases. | None; tests only. |
 
-No Playwright, deployment, service provisioning, rules, map data, graphics, or gameplay change is included in this initial Phase 1 commit.
+Phase 1 changes no rules, actions, legality, map/play-area data, civilization,
+commodity, advance, calamity, scoring, graphics, or normal gameplay outcome. The
+only engine-file change is the server-facing `viewFor` projection. No deployment
+or service provisioning is included.

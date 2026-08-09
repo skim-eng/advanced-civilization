@@ -26,9 +26,15 @@ npm run test:rls
 
 `test:rls` creates another clean cluster and proves that `anon` and `authenticated` cannot select any raw row, token, snapshot, chat, or report and cannot insert, update, or delete protected data. It then proves `service_role` can perform and clean up the lifecycle. It also asserts all four RLS flags and the absence of public policies.
 
+The ordinary source suite separately enables `SupabaseBroadcaster` against an
+isolated local wire capture and asserts the exact request bodies: a move contains
+only `{turn}` and a message contains `{}`. Neither payload includes a snapshot,
+hand, token, report, or service credential. Browser clients never subscribe to
+snapshot rows; a signal causes a fresh authenticated HTTP projection.
+
 ## Future hosted procedure
 
-Phase 2, if authorized, must apply the ordered migrations to a new owner-controlled Supabase project using the platform's reviewed migration mechanism, record migration checksums, repeat the service/anon checks through PostgREST and Realtime, and rehearse rollback/restore before staging approval. Do not paste `schema.sql` into an already-populated project as an undocumented substitute for migrations.
+Phase 2, if authorized, must apply the ordered migrations to a new owner-controlled Supabase project using the platform's reviewed migration mechanism, record migration checksums, repeat the service/anon checks through PostgREST and the actual hosted Realtime service, and rehearse rollback/restore before staging approval. Do not paste `schema.sql` into an already-populated project as an undocumented substitute for migrations.
 
 ## Data deletion
 
