@@ -13,7 +13,17 @@ package/
 # runtime / secrets
 .data/
 .env
+.env.*
+!.env.example
 .dev.vars
+.dev.vars.*
+.wrangler/
+secrets.json
+deploy-credentials.json
+service-account.json
+*.pem
+*.key
+*.p12
 
 # Board artwork is bring-your-own (extracted from the VASSAL module in the
 # browser at runtime) -- never ship or redistribute the map images.
