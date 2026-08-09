@@ -6,15 +6,21 @@ Local implementation checkpoint:
 `c0ee66fa4b3cddd9b0c3b36647ac718c1be21f26`
 Hosted acceptance checkpoint:
 `26fd1579299727f35b0c141abc1e767b6acd2dae`
+Final accepted PR head:
+`79d479774ca83b8d07a717e08b197a5ac788d62e`
+Merge commit:
+`ba773789c52f3757f68ea459abeb7da8a8f01f27`
 
 ## Current decision
 
 **PASS.**
 
 All `MUST_FIX_BEFORE_PHASE_1_COMPLETION` implementation and acceptance tests
-pass locally and in GitHub Actions. Push run `31319036345` and PR run
-`31319141052` both succeeded against the hosted acceptance checkpoint. Phase 1
-is not merged, and Phase 2 has not begun.
+pass locally and in GitHub Actions. Final push run `31319269620` and PR run
+`31319270762` both succeeded against the final accepted PR head. After a final
+read-only confirmation that the PR remained open, cleanly mergeable, unchanged,
+and green, PR #2 was merged with an ordinary merge commit. Phase 2 began only
+after local and remote `main` matched that merge commit.
 
 ## Blocker disposition
 
@@ -61,7 +67,7 @@ At the implementation checkpoint, all commands exited 0:
   map/play-area data, graphics, scoring, and normal gameplay are unchanged.
 - Every Phase 1 deviation is recorded in `docs/VANILLA_DEVIATIONS.md`.
 - No Cloudflare or hosted Supabase resource was created and no deployment ran.
-- Phase 1 is not merged and Phase 2 has not begun.
+- PR #2 was merged with an ordinary merge commit; no squash or rebase was used.
 
 ## Remaining known limitations
 
@@ -82,6 +88,6 @@ non-deployment observations. None permits deployment from Phase 1.
 
 ## Merge recommendation
 
-Phase 1 is ready to merge from a security/reliability acceptance perspective.
-Do not merge automatically; merge only by explicit owner action. Passing Phase
-1 does not authorize Phase 2 provisioning or deployment.
+Phase 1 was accepted and merged after explicit owner authorization. Phase 2 is
+tracked independently in `docs/PHASE_2_PLAN.md` and must not weaken any Phase 1
+gate.
