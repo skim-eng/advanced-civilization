@@ -3,7 +3,7 @@ import react from '@vitejs/plugin-react';
 import { versionStamp } from 'digital-boardgame-framework/vite';
 import fs from 'node:fs';
 import path from 'node:path';
-import { redactSensitiveUrlText } from './src/server/log-redaction';
+import { redactSensitiveUrlText } from './src/server/log-redaction.ts';
 
 function redactingLogger() {
   const logger = createLogger();
