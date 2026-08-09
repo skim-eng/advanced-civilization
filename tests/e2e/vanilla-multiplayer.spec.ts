@@ -223,7 +223,7 @@ test('exchanges a copied invitation into a refreshable HttpOnly session without 
   const copied = await newSeatContext(browser);
   const browserDiagnostics: string[] = [];
   let observedReferrer: string | undefined;
-  await first.route('https://referrer.invalid/**', async (route) => {
+  await first.route(`${APP_ORIGIN}/__referrer_probe__`, async (route) => {
     observedReferrer = route.request().headers().referer;
     await route.fulfill({ status: 204, body: '' });
   });
@@ -233,7 +233,7 @@ test('exchanges a copied invitation into a refreshable HttpOnly session without 
     if (firstPage.url().includes(credential)) throw new Error('visible URL retained the invitation credential');
     await firstPage.reload();
     await expect(firstPage.getByText(/you are Italy/i)).toBeVisible();
-    await firstPage.evaluate(() => fetch('https://referrer.invalid/probe'));
+    await firstPage.evaluate(() => fetch('/__referrer_probe__'));
     expect(observedReferrer).toBeUndefined();
 
     const copiedPage = await openSeat(copied, invite, 'Italy', browserDiagnostics);
